@@ -73,7 +73,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif;ba
 @keyframes slideInLeft{from{transform:translateX(22px);opacity:.45}to{transform:translateX(0);opacity:1}}
 @keyframes slideInRight{from{transform:translateX(-22px);opacity:.45}to{transform:translateX(0);opacity:1}}
 body{overscroll-behavior-x:none}
-.modal-handle{width:36px;height:4px;border-radius:2px;background:var(--border);margin:0 auto 20px}
+.modal-handle{width:36px;height:4px;border-radius:2px;background:var(--border);margin:0 auto 20px;cursor:grab;transition:background .2s}
+.modal-handle:active{cursor:grabbing;background:var(--text3)}
 .modal-title{font-size:18px;font-weight:700;margin-bottom:20px}
 .form-group{margin-bottom:16px}
 .form-label{font-size:12px;color:var(--text2);margin-bottom:8px;display:block;font-weight:600;letter-spacing:.5px}
@@ -546,6 +547,11 @@ select.form-input{cursor:pointer}
     <div class="form-group"><label class="form-label">QUANTITÀ</label><input type="number" class="form-input" id="invest-qty" placeholder="es. 10" step="any" inputmode="decimal"></div>
     <div class="form-group"><label class="form-label">PREZZO MEDIO CARICO (€)</label><input type="number" class="form-input" id="invest-price" placeholder="es. 45.50" step="any" inputmode="decimal"></div>
     <div class="form-group"><label class="form-label">VALORE ATTUALE/UNITÀ (€) <span class="no-data-badge">opzionale</span></label><input type="number" class="form-input" id="invest-current" placeholder="Lascia vuoto = uguale al carico" step="any" inputmode="decimal"></div>
+    <div class="form-group" id="invest-conto-group">
+      <label class="form-label">ADDEBITA DA CONTO <span class="no-data-badge">opzionale</span></label>
+      <select class="form-input" id="invest-conto"><option value="">Nessun movimento su conto</option></select>
+      <div style="font-size:12px;color:var(--text3);margin-top:6px">Se selezioni un conto, il costo dell'investimento (quantità × prezzo carico) verrà sottratto dal saldo.</div>
+    </div>
     <button class="btn-primary" id="invest-save-btn" onclick="saveInvestment()">Aggiungi</button>
     <button class="btn-secondary" onclick="closeModal('investModal')">Annulla</button>
   </div>
@@ -555,11 +561,17 @@ select.form-input{cursor:pointer}
 <div class="modal-overlay" id="contoModal">
   <div class="modal">
     <div class="modal-handle"></div>
-    <div class="modal-title">Aggiungi conto</div>
+    <div class="modal-title" id="conto-modal-title">Aggiungi conto</div>
     <div class="form-group"><label class="form-label">NOME</label><input type="text" class="form-input" id="conto-name" placeholder="es. Crédit Agricole, Trade Republic"></div>
     <div class="form-group"><label class="form-label">TIPO</label><select class="form-input" id="conto-type"><option value="banca">Conto bancario</option><option value="broker">Broker</option><option value="crypto">Exchange crypto</option><option value="contanti">Contanti</option><option value="altro">Altro</option></select></div>
-    <div class="form-group"><label class="form-label">SALDO INIZIALE (€)</label><input type="number" class="form-input" id="conto-saldo" placeholder="es. 5000.00" step="0.01" inputmode="decimal"></div>
-    <button class="btn-primary" onclick="saveConto()">Aggiungi</button>
+    <div class="form-group" id="conto-saldo-group"><label class="form-label" id="conto-saldo-label">SALDO INIZIALE (€)</label><input type="number" class="form-input" id="conto-saldo" placeholder="es. 5000.00" step="0.01" inputmode="decimal"></div>
+    <div class="form-group" id="conto-saldo-note" style="display:none">
+      <div style="background:var(--bg3);border-radius:var(--radius-sm);padding:12px;font-size:13px;color:var(--text2);line-height:1.6">
+        💡 Il saldo attuale è <strong id="conto-saldo-current"></strong>.<br>
+        Inserisci il nuovo saldo corretto e verrà aggiornato.
+      </div>
+    </div>
+    <button class="btn-primary" id="conto-save-btn" onclick="saveConto()">Aggiungi</button>
     <button class="btn-secondary" onclick="closeModal('contoModal')">Annulla</button>
   </div>
 </div>
@@ -821,7 +833,7 @@ function syncCategories(){
   CATEGORIES = state.categorie;
 }
 let selectedCat='cibo', selectedType='uscita', selectedDebitoType='attivo';
-let exportTab='mensile', editingTxId=null, editingInvId=null, editingObId=null;
+let exportTab='mensile', editingTxId=null, editingInvId=null, editingObId=null, editingContoId=null;
 let aiResultData=null, aiImageBase64=null, aiImageMime='image/jpeg';
 let currentPage='dashboard';
 let askResolve=null;
@@ -895,16 +907,60 @@ function openModal(id){
   if(id==='periodModal') initPeriodModal();
   if(id==='catMgrModal') renderCatMgr();
   if(id==='tagMgrModal') renderTagMgr();
+  if(id==='contoModal' && !editingContoId) initContoModal();
   if(id==='apiKeyModal') document.getElementById('anthropic-api-key').value=state.anthropicKey||'';
   if(id==='obiettivoModal' && !editingObId) initObiettivoModal();
 }
 function closeModal(id){document.getElementById(id).classList.remove('open');}
-document.querySelectorAll('.modal-overlay').forEach(m=>m.addEventListener('click',e=>{
-  if(e.target!==m) return;
-  // Se si chiude il prompt toccando fuori, risolvi la promessa (evita blocchi)
-  if(m.id==='askModal' && askResolve){askResolve(null);askResolve=null;}
-  closeModal(m.id);
-}));
+// ── SWIPE TO CLOSE MODAL ─────────────────────────────────────
+function addSwipeToClose(modal){
+  const handle=modal.querySelector('.modal-handle');
+  const content=modal.querySelector('.modal');
+  if(!handle||!content) return;
+  let sy=0, dy=0, dragging=false;
+  // Zona di trascinamento: tutta la parte superiore del modal (handle + titolo)
+  const dragZone=content;
+  dragZone.addEventListener('touchstart',e=>{
+    if(e.touches.length!==1) return;
+    // Inizia solo se il touch è nella metà superiore del modal
+    const rect=content.getBoundingClientRect();
+    if(e.touches[0].clientY - rect.top > 80) return;
+    sy=e.touches[0].clientY; dy=0; dragging=true;
+    content.style.transition='none';
+  },{passive:true});
+  dragZone.addEventListener('touchmove',e=>{
+    if(!dragging) return;
+    dy=e.touches[0].clientY-sy;
+    if(dy<0){content.style.transform='';return;}
+    content.style.transform=`translateY(${dy}px)`;
+  },{passive:true});
+  dragZone.addEventListener('touchend',()=>{
+    if(!dragging) return;
+    dragging=false;
+    content.style.transition='';
+    if(dy>90){
+      content.style.transform='translateY(100%)';
+      setTimeout(()=>{
+        content.style.transform='';
+        closeModal(modal.id);
+        // Se prompt aperto, risolvi la promise
+        if(modal.id==='askModal'&&askResolve){askResolve(null);askResolve=null;}
+      },220);
+    } else {
+      content.style.transform='';
+    }
+    dy=0;
+  },{passive:true});
+}
+
+document.querySelectorAll('.modal-overlay').forEach(m=>{
+  m.addEventListener('click',e=>{
+    if(e.target!==m) return;
+    if(m.id==='askModal'&&askResolve){askResolve(null);askResolve=null;}
+    closeModal(m.id);
+  });
+  addSwipeToClose(m);
+});
 
 // ── INIT ADD MODAL ────────────────────────────────────────────
 function openAddModal(){editingTxId=null;openModal('addModal');}
@@ -1249,6 +1305,14 @@ function openInvestModal(id){
   editingInvId=id||null;
   document.getElementById('invest-modal-title').textContent=editingInvId?'Modifica investimento':'Aggiungi investimento';
   document.getElementById('invest-save-btn').textContent=editingInvId?'Salva modifiche':'Aggiungi';
+  // Popola select conto investimento
+  const invContoSel=document.getElementById('invest-conto');
+  if(invContoSel){
+    invContoSel.innerHTML='<option value="">Nessun movimento su conto</option>'+
+      state.conti.map(c=>`<option value="${c.id}">${esc(c.name)} (€${fmt(c.saldo)})</option>`).join('');
+    // In modifica non addebitare di nuovo
+    document.getElementById('invest-conto-group').style.display=editingInvId?'none':'block';
+  }
   if(editingInvId){
     const inv=state.investments.find(i=>i.id===editingInvId);
     if(inv){
@@ -1276,12 +1340,30 @@ function saveInvestment(){
   if(!name)return toast('Inserisci un nome','err');
   if(!qty||qty<=0)return toast('Quantità non valida','err');
   if(!price||price<=0)return toast('Prezzo non valido','err');
+  // Popola select conto investimento
+  const invContoSel=document.getElementById('invest-conto');
+  if(invContoSel){
+    invContoSel.innerHTML='<option value="">Nessun movimento su conto</option>'+
+      state.conti.map(c=>`<option value="${c.id}">${esc(c.name)} (€${fmt(c.saldo)})</option>`).join('');
+    // In modifica non addebitare di nuovo
+    document.getElementById('invest-conto-group').style.display=editingInvId?'none':'block';
+  }
   if(editingInvId){
     const inv=state.investments.find(i=>i.id===editingInvId);
     if(inv){Object.assign(inv,{name,isin,qty,price,current,type});}
     editingInvId=null;
   } else {
-    state.investments.push({id:Date.now(),name,isin,qty,price,current,type});
+    const contoId=parseInt(document.getElementById('invest-conto')?.value)||null;
+    state.investments.push({id:Date.now(),name,isin,qty,price,current,type,contoId});
+    // Sottrai il costo dal conto selezionato
+    if(contoId){
+      const conto=state.conti.find(c=>c.id===contoId);
+      if(conto){
+        const costo=qty*price;
+        conto.saldo-=costo;
+        toast(`€${fmt(costo)} addebitati da ${conto.name}`,'ok');
+      }
+    }
   }
   snapshotPatrimonio();saveState();closeModal('investModal');renderAll();
   toast('Investimento salvato','ok');
@@ -1290,16 +1372,61 @@ function saveInvestment(){
 function deleteInvestment(id){if(!confirm('Eliminare?'))return;state.investments=state.investments.filter(i=>i.id!==id);snapshotPatrimonio();saveState();renderAll();}
 
 // ── CONTI ─────────────────────────────────────────────────────
+function initContoModal(id){
+  editingContoId=id||null;
+  const c=id?state.conti.find(x=>x.id===id):null;
+  document.getElementById('conto-modal-title').textContent=c?'Modifica conto':'Aggiungi conto';
+  document.getElementById('conto-save-btn').textContent=c?'Salva modifiche':'Aggiungi';
+  document.getElementById('conto-name').value=c?c.name:'';
+  document.getElementById('conto-type').value=c?c.type:'banca';
+  // In modifica mostra saldo attuale invece del campo iniziale
+  if(c){
+    document.getElementById('conto-saldo-label').textContent='NUOVO SALDO (€)';
+    document.getElementById('conto-saldo').value=c.saldo;
+    document.getElementById('conto-saldo-note').style.display='block';
+    document.getElementById('conto-saldo-current').textContent='€'+fmt(c.saldo);
+  } else {
+    document.getElementById('conto-saldo-label').textContent='SALDO INIZIALE (€)';
+    document.getElementById('conto-saldo').value='';
+    document.getElementById('conto-saldo-note').style.display='none';
+  }
+}
+
+function openContoModal(id){
+  editingContoId=id||null;
+  initContoModal(id);
+  openModal('contoModal');
+}
+
 function saveConto(){
   const name=document.getElementById('conto-name').value.trim();
   const type=document.getElementById('conto-type').value;
   const saldo=parseFloat(document.getElementById('conto-saldo').value)||0;
   if(!name)return toast('Inserisci un nome','err');
-  state.conti.push({id:Date.now(),name,type,saldo});
+  if(editingContoId){
+    const c=state.conti.find(x=>x.id===editingContoId);
+    if(c){c.name=name;c.type=type;c.saldo=saldo;}
+    editingContoId=null;
+    toast(`Conto "${name}" aggiornato`,'ok');
+  } else {
+    state.conti.push({id:Date.now(),name,type,saldo});
+    toast(`Conto "${name}" aggiunto`,'ok');
+  }
   snapshotPatrimonio();saveState();closeModal('contoModal');renderAll();
-  toast(`Conto "${name}" aggiunto`,'ok');
 }
-function deleteConto(id){if(!confirm('Eliminare questo conto?'))return;state.conti=state.conti.filter(c=>c.id!==id);saveState();renderAll();}
+function deleteConto(id){
+  const c=state.conti.find(x=>x.id===id);
+  if(!c)return;
+  const nTx=state.transactions.filter(t=>t.contoId===id).length;
+  const msg=nTx>0
+    ?`Eliminare "${c.name}"? Questo conto è collegato a ${nTx} transazion${nTx===1?'e':'i'}, che rimarranno ma senza conto associato.`
+    :`Eliminare il conto "${c.name}"?`;
+  if(!confirm(msg))return;
+  state.transactions.forEach(t=>{if(t.contoId===id)t.contoId=null;});
+  state.conti=state.conti.filter(x=>x.id!==id);
+  snapshotPatrimonio();saveState();renderAll();
+  toast(`Conto "${c.name}" eliminato`,'ok');
+}
 
 // ── TRASFERIMENTO ─────────────────────────────────────────────
 function initTrasferimentoModal(){
@@ -2158,7 +2285,7 @@ function renderSettings(){
   const icons={banca:'🏦',broker:'📈',crypto:'🪙',contanti:'💵',altro:'💼'};
   document.getElementById('conti-list-settings').innerHTML=
     `<div class="settings-row" onclick="openModal('contoModal')"><div><div class="settings-label">+ Aggiungi conto</div><div class="settings-sub">Banca, broker, wallet</div></div><div class="settings-right">›</div></div>`
-    +state.conti.map(c=>`<div class="settings-row"><div><div class="settings-label">${icons[c.type]||'💼'} ${esc(c.name)}</div><div class="settings-sub">Saldo: €${fmt(c.saldo)}</div></div><div class="settings-right" style="cursor:pointer;color:var(--red)" onclick="deleteConto(${c.id})">✕</div></div>`).join('');
+    +state.conti.map(c=>`<div class="settings-row"><div><div class="settings-label">${icons[c.type]||'💼'} ${esc(c.name)}</div><div class="settings-sub">Saldo: €${fmt(c.saldo)}</div></div><div style="display:flex;gap:10px;align-items:center"><button class="action-btn" onclick="openContoModal(${c.id})">✏️</button><button class="action-btn red" onclick="deleteConto(${c.id})">✕</button></div></div>`).join('');
 }
 
 // ── EXPORT EXCEL ─────────────────────────────────────────────
