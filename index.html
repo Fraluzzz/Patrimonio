@@ -524,7 +524,9 @@ select.form-input{cursor:pointer}
       4. Copia la chiave e incollala qui
     </p>
     <button class="btn-primary" onclick="saveApiKey()">Salva</button>
-    <button class="btn-secondary" onclick="closeModal('apiKeyModal')">Annulla</button>
+    <button class="btn-secondary" onclick="testGeminiKey()">🔍 Verifica connessione</button>
+    <div id="gemini-test-result" style="display:none;font-size:12px;line-height:1.6;margin-top:12px;padding:12px;background:var(--bg3);border-radius:var(--radius-sm)"></div>
+    <button class="btn-secondary" onclick="closeModal('apiKeyModal')">Chiudi</button>
   </div>
 </div>
 
@@ -1013,6 +1015,97 @@ function previewAIImage(e){
 
 // Estrae il testo dalla risposta Gemini in modo robusto
 // (i modelli 3.x possono restituire più parti, incluse quelle di reasoning)
+// ── RILEVAMENTO AUTOMATICO MODELLO GEMINI ─────────────────────
+// I nomi dei modelli cambiano spesso: l'app interroga l'API e sceglie
+// il primo modello disponibile che supporta le immagini.
+let geminiModel = null;
+
+async function findGeminiModel(){
+  if(geminiModel) return geminiModel;
+  // 1) Modello salvato in precedenza
+  if(state.geminiModel){ geminiModel=state.geminiModel; return geminiModel; }
+  // 2) Interroga l'elenco modelli disponibili per questa chiave
+  try{
+    const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${state.anthropicKey}`);
+    const d=await r.json();
+    if(d.error) throw new Error(d.error.message);
+    const usable=(d.models||[])
+      .filter(m=>(m.supportedGenerationMethods||[]).includes('generateContent'))
+      .map(m=>m.name.replace(/^models\//,''))
+      .filter(n=>/flash/i.test(n) && !/thinking|image|tts|audio|embedding|live/i.test(n));
+    if(!usable.length) throw new Error('Nessun modello compatibile disponibile');
+    // Preferisci flash-lite (quota più alta), poi flash stabile, evita i preview
+    const score=n=>{
+      let s=0;
+      if(/lite/i.test(n)) s+=100;
+      if(!/preview|exp/i.test(n)) s+=50;
+      if(/latest/i.test(n)) s+=10;
+      const v=parseFloat((n.match(/(\d+\.?\d*)/)||[0,0])[1]);
+      return s+v;
+    };
+    usable.sort((a,b)=>score(b)-score(a));
+    geminiModel=usable[0];
+    state.geminiModel=geminiModel;
+    saveState();
+    return geminiModel;
+  }catch(e){
+    throw new Error('Impossibile contattare Gemini: '+e.message);
+  }
+}
+
+async function callGemini(parts, maxTokens){
+  const model=await findGeminiModel();
+  const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${state.anthropicKey}`,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({contents:[{parts}],generationConfig:{maxOutputTokens:maxTokens||300}})
+  });
+  const d=await r.json();
+  if(d.error){
+    // Se il modello salvato non è più valido, riprova rilevandolo di nuovo
+    if(/not found|not supported|quota/i.test(d.error.message||'')){
+      state.geminiModel=null; geminiModel=null; saveState();
+      if(/quota/i.test(d.error.message)) throw new Error('Quota giornaliera esaurita — riprova domani');
+      const m2=await findGeminiModel();
+      const r2=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m2}:generateContent?key=${state.anthropicKey}`,{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({contents:[{parts}],generationConfig:{maxOutputTokens:maxTokens||300}})
+      });
+      const d2=await r2.json();
+      if(d2.error) throw new Error(d2.error.message);
+      return d2;
+    }
+    throw new Error(d.error.message);
+  }
+  return d;
+}
+
+async function testGeminiKey(){
+  const el=document.getElementById('gemini-test-result');
+  const key=document.getElementById('anthropic-api-key').value.trim();
+  if(!key){toast('Inserisci prima la chiave','err');return;}
+  state.anthropicKey=key; state.geminiModel=null; geminiModel=null;
+  el.style.display='block';
+  el.innerHTML='<span style="color:var(--text2)">Verifica in corso…</span>';
+  try{
+    const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`);
+    const d=await r.json();
+    if(d.error) throw new Error(d.error.message);
+    const usable=(d.models||[])
+      .filter(m=>(m.supportedGenerationMethods||[]).includes('generateContent'))
+      .map(m=>m.name.replace(/^models\//,''))
+      .filter(n=>/flash/i.test(n) && !/thinking|image|tts|audio|embedding|live/i.test(n));
+    if(!usable.length) throw new Error('Nessun modello compatibile trovato');
+    const chosen=await findGeminiModel();
+    el.innerHTML=`<div style="color:var(--green);font-weight:600;margin-bottom:6px">✅ Connessione riuscita</div>
+      <div style="color:var(--text2)">Modello selezionato: <strong style="color:var(--text)">${esc(chosen)}</strong></div>
+      <div style="color:var(--text3);margin-top:4px">${usable.length} modelli disponibili con questa chiave</div>`;
+    saveState();
+  }catch(e){
+    el.innerHTML=`<div style="color:var(--red);font-weight:600;margin-bottom:6px">⚠️ Problema</div><div style="color:var(--text2)">${esc(e.message)}</div>`;
+  }
+}
+
 function extractGeminiText(data){
   if(data.error) throw new Error(data.error.message||'Errore API');
   const parts=data?.candidates?.[0]?.content?.parts||[];
@@ -1040,20 +1133,12 @@ async function analyzeReceipt(){
     // Ottieni le categorie disponibili dinamicamente
     syncCategories();
     const catIds=CATEGORIES.map(c=>c.id).join(', ');
-    const resp=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${state.anthropicKey}`,{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        contents:[{parts:[
-          {inline_data:{mime_type:aiImageMime,data:aiImageBase64}},
-          {text:`Analizza questa immagine (scontrino, fattura, ricevuta, screenshot di pagamento o bonifico). Rispondi SOLO con un oggetto JSON valido, nessun testo aggiuntivo, nessun markdown. Campi richiesti:
+    const data=await callGemini([
+      {inline_data:{mime_type:aiImageMime,data:aiImageBase64}},
+      {text:`Analizza questa immagine (scontrino, fattura, ricevuta, screenshot di pagamento o bonifico). Rispondi SOLO con un oggetto JSON valido, nessun testo aggiuntivo, nessun markdown. Campi richiesti:
 {"importo": <numero decimale con punto, es 24.50>, "descrizione": "<nome breve del negozio/servizio, max 30 caratteri>", "categoria": "<una esatta tra: ${catIds}>", "data": "<YYYY-MM-DD se visibile, altrimenti null>"}
 L'importo deve essere il totale finale pagato in euro. Se non riesci a determinare un campo metti null.`}
-        ]}],
-        generationConfig:{maxOutputTokens:200,temperature:0}
-      })
-    });
-    const data=await resp.json();
+    ], 300);
     const text=extractGeminiText(data);
     aiResultData=JSON.parse(text);
     // Normalizza importo (potrebbe arrivare come stringa)
@@ -1101,6 +1186,7 @@ function confirmAIResult(){
 
 function saveApiKey(){
   state.anthropicKey=document.getElementById('anthropic-api-key').value.trim()||null;
+  state.geminiModel=null; geminiModel=null;  // rileva di nuovo il modello
   saveState();closeModal('apiKeyModal');renderAll();
   toast(state.anthropicKey?'API key salvata':'API key rimossa','ok');
 }
@@ -1125,16 +1211,9 @@ async function searchInvestmentAI(){
   document.getElementById('ai-invest-result').style.display='none';
   document.getElementById('ai-invest-confirm-btn').style.display='none';
   try{
-    const resp=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${state.anthropicKey}`,{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        contents:[{parts:[{text:`Per l'investimento "${query}", rispondi SOLO con un JSON valido (senza markdown, senza backtick) con questi campi: {"nome": "nome completo", "ticker": "ticker simbolo se esiste", "tipo": "etf o azione o crypto o altro", "isin": "codice ISIN a 12 caratteri se ETF o azione, altrimenti null", "descrizione": "breve descrizione in italiano max 1 frase", "valuta": "EUR o USD o altro"}. Per crypto il tipo è sempre "crypto". Per ETF il tipo è "etf". Per azioni singole è "azione".`}]}],
-        generationConfig:{maxOutputTokens:300,temperature:0}
-      })
-    });
-    const data=await resp.json();
-    if(data.error)throw new Error(data.error.message);
+    const data=await callGemini([
+      {text:`Per l'investimento "${query}", rispondi SOLO con un JSON valido (senza markdown, senza backtick) con questi campi: {"nome": "nome completo", "ticker": "ticker simbolo se esiste", "tipo": "etf o azione o crypto o altro", "isin": "codice ISIN a 12 caratteri se ETF o azione, altrimenti null", "descrizione": "breve descrizione in italiano max 1 frase", "valuta": "EUR o USD o altro"}. Per crypto il tipo è sempre "crypto". Per ETF il tipo è "etf". Per azioni singole è "azione".`}
+    ], 300);
     const text=extractGeminiText(data);
     aiInvestData=JSON.parse(text);
     document.getElementById('ai-invest-result').innerHTML=`
