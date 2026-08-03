@@ -1014,10 +1014,20 @@ function previewAIImage(e){
 // Estrae il testo dalla risposta Gemini in modo robusto
 // (i modelli 3.x possono restituire più parti, incluse quelle di reasoning)
 function extractGeminiText(data){
+  if(data.error) throw new Error(data.error.message||'Errore API');
   const parts=data?.candidates?.[0]?.content?.parts||[];
   const txt=parts.map(p=>p?.text||'').filter(Boolean).join('').trim();
-  if(!txt) throw new Error('Risposta vuota dal modello');
-  return txt.replace(/```json/gi,'').replace(/```/g,'').trim();
+  if(!txt){
+    const reason=data?.candidates?.[0]?.finishReason;
+    if(reason==='MAX_TOKENS') throw new Error('Risposta troncata — riprova con un\'immagine più piccola');
+    throw new Error('Risposta vuota dal modello');
+  }
+  // Rimuovi markdown e cerca il primo oggetto JSON valido nel testo
+  const clean=txt.replace(/```json/gi,'').replace(/```/g,'').trim();
+  // Estrai il primo { ... } valido (gestisce testo extra prima/dopo)
+  const jsonMatch=clean.match(/\{[\s\S]*\}/);
+  if(!jsonMatch) throw new Error('Nessun JSON nella risposta');
+  return jsonMatch[0];
 }
 
 async function analyzeReceipt(){
@@ -1027,30 +1037,39 @@ async function analyzeReceipt(){
   document.getElementById('ai-result').style.display='none';
   document.getElementById('ai-confirm-btn').style.display='none';
   try{
-    const resp=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${state.anthropicKey}`,{
+    // Ottieni le categorie disponibili dinamicamente
+    syncCategories();
+    const catIds=CATEGORIES.map(c=>c.id).join(', ');
+    const resp=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${state.anthropicKey}`,{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
         contents:[{parts:[
           {inline_data:{mime_type:aiImageMime,data:aiImageBase64}},
-          {text:'Analizza questo scontrino e rispondi SOLO con un JSON valido (senza markdown, senza backtick) con questi campi: {"importo": numero, "descrizione": "nome breve del negozio o esercizio", "categoria": "una tra: cibo, trasporti, shopping, svago, salute, casa, istruzione, sport, viaggi, altro", "data": "YYYY-MM-DD o null se non visibile"}. Importo deve essere il totale finale in euro come numero decimale.'}
+          {text:`Analizza questa immagine (scontrino, fattura, ricevuta, screenshot di pagamento o bonifico). Rispondi SOLO con un oggetto JSON valido, nessun testo aggiuntivo, nessun markdown. Campi richiesti:
+{"importo": <numero decimale con punto, es 24.50>, "descrizione": "<nome breve del negozio/servizio, max 30 caratteri>", "categoria": "<una esatta tra: ${catIds}>", "data": "<YYYY-MM-DD se visibile, altrimenti null>"}
+L'importo deve essere il totale finale pagato in euro. Se non riesci a determinare un campo metti null.`}
         ]}],
-        generationConfig:{maxOutputTokens:400}
+        generationConfig:{maxOutputTokens:200,temperature:0}
       })
     });
     const data=await resp.json();
-    if(data.error)throw new Error(data.error.message);
     const text=extractGeminiText(data);
     aiResultData=JSON.parse(text);
+    // Normalizza importo (potrebbe arrivare come stringa)
+    if(typeof aiResultData.importo==='string') aiResultData.importo=parseFloat(aiResultData.importo.replace(',','.'));
+    // Valida categoria
+    if(!CATEGORIES.find(c=>c.id===aiResultData.categoria)) aiResultData.categoria='altro';
+    const catLabel=CATEGORIES.find(c=>c.id===aiResultData.categoria)?.label||aiResultData.categoria;
     document.getElementById('ai-result').innerHTML=`
-      <div style="margin-bottom:6px"><strong>Importo:</strong> €${aiResultData.importo||'–'}</div>
-      <div style="margin-bottom:6px"><strong>Descrizione:</strong> ${aiResultData.descrizione||'–'}</div>
-      <div style="margin-bottom:6px"><strong>Categoria:</strong> ${aiResultData.categoria||'–'}</div>
-      <div><strong>Data:</strong> ${aiResultData.data||'oggi'}</div>`;
+      <div style="margin-bottom:8px;display:flex;justify-content:space-between"><strong>Importo</strong><span class="pos" style="font-size:18px;font-weight:700">€${aiResultData.importo||'–'}</span></div>
+      <div style="margin-bottom:8px;display:flex;justify-content:space-between"><strong>Negozio</strong><span>${esc(aiResultData.descrizione||'–')}</span></div>
+      <div style="margin-bottom:8px;display:flex;justify-content:space-between"><strong>Categoria</strong><span>${esc(catLabel)}</span></div>
+      <div style="display:flex;justify-content:space-between"><strong>Data</strong><span>${aiResultData.data||'oggi'}</span></div>`;
     document.getElementById('ai-result').style.display='block';
     document.getElementById('ai-confirm-btn').style.display='block';
   }catch(err){
-    document.getElementById('ai-result').innerHTML='<span style="color:var(--red)">Errore: '+err.message+'</span>';
+    document.getElementById('ai-result').innerHTML='<span style="color:var(--red)">'+esc(err.message)+'</span>';
     document.getElementById('ai-result').style.display='block';
     document.getElementById('ai-analyze-btn').style.display='block';
   }
@@ -1106,12 +1125,12 @@ async function searchInvestmentAI(){
   document.getElementById('ai-invest-result').style.display='none';
   document.getElementById('ai-invest-confirm-btn').style.display='none';
   try{
-    const resp=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${state.anthropicKey}`,{
+    const resp=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${state.anthropicKey}`,{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
         contents:[{parts:[{text:`Per l'investimento "${query}", rispondi SOLO con un JSON valido (senza markdown, senza backtick) con questi campi: {"nome": "nome completo", "ticker": "ticker simbolo se esiste", "tipo": "etf o azione o crypto o altro", "isin": "codice ISIN a 12 caratteri se ETF o azione, altrimenti null", "descrizione": "breve descrizione in italiano max 1 frase", "valuta": "EUR o USD o altro"}. Per crypto il tipo è sempre "crypto". Per ETF il tipo è "etf". Per azioni singole è "azione".`}]}],
-        generationConfig:{maxOutputTokens:400}
+        generationConfig:{maxOutputTokens:300,temperature:0}
       })
     });
     const data=await resp.json();
