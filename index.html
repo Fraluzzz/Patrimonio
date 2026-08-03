@@ -14,6 +14,8 @@
 :root{--bg:#0a0f1e;--bg2:#111827;--bg3:#1a2235;--card:#161e30;--border:#1f2d45;--accent:#3b82f6;--accent2:#6366f1;--green:#10b981;--red:#ef4444;--yellow:#f59e0b;--text:#f1f5f9;--text2:#94a3b8;--text3:#475569;--radius:16px;--radius-sm:10px;--safe-top:env(safe-area-inset-top,0px);--safe-bottom:env(safe-area-inset-bottom,0px)}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
 input,select,textarea{touch-action:auto;font-size:16px}
+*::-webkit-scrollbar{display:none}
+*{scrollbar-width:none;-ms-overflow-style:none}
 body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;padding-bottom:calc(80px + var(--safe-bottom))}
 .topbar{background:var(--bg);padding:calc(var(--safe-top) + 16px) 20px 12px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;border-bottom:1px solid var(--border)}
 .topbar h1{font-size:20px;font-weight:700;letter-spacing:-.5px}
@@ -2505,7 +2507,6 @@ const CRYPTO_IDS={
 };
 
 function extractTicker(name){
-  // Formato "TICKER - Nome" oppure "TICKER.XX - Nome"
   const m=name.match(/^([A-Z0-9]{2,10}(?:\.[A-Z]{2})?)\s*[-–]/);
   if(m) return m[1];
   const first=name.trim().split(/\s/)[0];
@@ -2513,34 +2514,26 @@ function extractTicker(name){
   return null;
 }
 
-// Cerca prezzo ETF su JustETF tramite ISIN o nome
-async function fetchJustETF(inv){
-  // Se l'investimento ha un ISIN salvato, usalo direttamente
-  const isin=inv.isin;
-  if(isin&&/^[A-Z]{2}[A-Z0-9]{10}$/.test(isin)){
-    try{
-      const url=`https://www.justetf.com/it/etf-profile.html?isin=${isin}`;
-      const proxy=`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
-      const resp=await fetch(proxy,{signal:AbortSignal.timeout(10000)});
-      const data=await resp.json();
-      // Cerca il prezzo nel contenuto HTML
-      const html=data.contents||'';
-      // JustETF mostra il prezzo in un elemento con classe "val" vicino a "Prezzo"
-      const priceMatch=html.match(/class="val"[^>]*>\s*([\d]+[,.][\d]+)\s*€/);
-      if(priceMatch){
-        const priceStr=priceMatch[1].replace(',','.');
-        const price=parseFloat(priceStr);
-        if(price>0) return price;
-      }
-      // Fallback: cerca pattern numerico vicino a EUR
-      const m2=html.match(/"regularMarketPrice"\s*:\s*([\d.]+)/);
-      if(m2) return parseFloat(m2[1]);
-    }catch(e){}
-  }
-  return null;
+// Fonte 1: Stooq (affidabile, CSV, no CORS issues via allorigins)
+async function fetchStooq(ticker){
+  try{
+    // Stooq usa formato TICKER.UK/.US/.EU ecc — prova prima il ticker diretto
+    const t=ticker.replace('.AS','.NL').replace('.L','.UK').replace('.DE','.DE')||ticker;
+    const url=`https://stooq.com/q/l/?s=${encodeURIComponent(t.toLowerCase())}&f=sd2t2ohlcv&h&e=csv`;
+    const proxy=`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+    const resp=await fetch(proxy,{signal:AbortSignal.timeout(8000)});
+    const data=await resp.json();
+    const csv=data.contents||'';
+    // CSV: Name,Date,Time,Open,High,Low,Close,Volume
+    const lines=csv.trim().split('\n');
+    if(lines.length<2) return null;
+    const cols=lines[1].split(',');
+    const close=parseFloat(cols[6]);
+    return(close&&close>0)?close:null;
+  }catch(e){return null;}
 }
 
-// Cerca prezzo ETF/Azione via Yahoo Finance proxy
+// Fonte 2: Yahoo Finance via proxy
 async function fetchYahoo(ticker){
   try{
     const url=`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=1d`;
@@ -2551,6 +2544,24 @@ async function fetchYahoo(ticker){
     const price=parsed?.chart?.result?.[0]?.meta?.regularMarketPrice;
     return(price&&price>0)?price:null;
   }catch(e){return null;}
+}
+
+// Fonte 3: JustETF via proxy (fallback per ISIN)
+async function fetchJustETF(inv){
+  const isin=inv.isin;
+  if(!isin||!/^[A-Z]{2}[A-Z0-9]{10}$/.test(isin)) return null;
+  try{
+    const url=`https://www.justetf.com/it/etf-profile.html?isin=${isin}`;
+    const proxy=`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+    const resp=await fetch(proxy,{signal:AbortSignal.timeout(10000)});
+    const data=await resp.json();
+    const html=data.contents||'';
+    const m1=html.match(/class="val"[^>]*>\s*([\d]+[,.][\d]+)\s*€/);
+    if(m1){const p=parseFloat(m1[1].replace(',','.'));if(p>0)return p;}
+    const m2=html.match(/"regularMarketPrice"\s*:\s*([\d.]+)/);
+    if(m2){const p=parseFloat(m2[1]);if(p>0)return p;}
+  }catch(e){}
+  return null;
 }
 
 let isRefreshing=false;
@@ -2581,18 +2592,19 @@ async function _doRefresh(silent=false){
     }catch(e){if(!silent) cryptos.forEach(i=>failed.push(i.name));}
   }
 
-  // ── ETF/Azioni: prova JustETF (ISIN) poi Yahoo Finance ──
+  // ── ETF/Azioni: prova Stooq → Yahoo → JustETF ──
   for(const inv of others){
     let price=null;
+    const ticker=extractTicker(inv.name);
 
-    // 1. JustETF se ha ISIN
-    if(inv.isin) price=await fetchJustETF(inv);
+    // 1. Stooq (più affidabile, CSV diretto)
+    if(ticker) price=await fetchStooq(ticker);
 
-    // 2. Yahoo Finance con ticker estratto
-    if(!price){
-      const ticker=extractTicker(inv.name);
-      if(ticker) price=await fetchYahoo(ticker);
-    }
+    // 2. Yahoo Finance
+    if(!price && ticker) price=await fetchYahoo(ticker);
+
+    // 3. JustETF via ISIN (ultimo tentativo)
+    if(!price && inv.isin) price=await fetchJustETF(inv);
 
     if(price){
       inv.current=price;
@@ -2613,7 +2625,7 @@ async function _doRefresh(silent=false){
     } else if(updated){
       toast(`${updated} aggiornati · ${failed.length} non trovati`,'err');
     } else {
-      alert(`Nessun prezzo aggiornato.\n\nNon trovati: ${failed.join(', ')}\n\nPer gli ETF aggiungi l'ISIN nella scheda investimento, oppure usa il formato "VHVE.AS - Nome".`);
+      alert(`Nessun prezzo aggiornato automaticamente.\n\nNon trovati: ${failed.join(', ')}\n\nSoluzioni:\n• Per VHVE usa "VHVE.AS - FTSE Developed World" con ISIN IE00B4L5Y983\n• Aggiorna il prezzo manualmente con ✏️\n• I proxy possono essere temporaneamente offline — riprova tra qualche minuto`);
     }
   }
 }
