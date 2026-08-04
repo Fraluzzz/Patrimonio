@@ -2583,26 +2583,41 @@ async function fetchStooq(ticker){
 }
 
 // Fonte 3: JustETF via ISIN
-async function fetchJustETF(inv){
+async function fetchJustETF(inv, refPrice){
   const isin=inv.isin;
   if(!isin||!/^[A-Z]{2}[A-Z0-9]{10}$/.test(isin)) return null;
   const url=`https://www.justetf.com/it/etf-profile.html?isin=${isin}`;
   const html=await proxyFetch(url,11000);
   if(!html) return null;
+  // Riferimento per validare: prezzo attuale noto, o prezzo di carico
+  const ref = refPrice || inv.current || inv.price || null;
   const pats=[
-    /class="val"[^>]*>\s*(?:EUR|€)?\s*([\d.]+,[\d]+)/,
     /"regularMarketPrice"\s*:\s*([\d.]+)/,
-    /Quotazione[\s\S]{0,200}?([\d]{1,4},[\d]{2})/,
-    /€\s*([\d]{1,4},[\d]{2})/,
+    /class="val"[^>]*>\s*(?:EUR|€)?\s*([\d.]+,[\d]{2})/,
+    /Quotazione[\s\S]{0,300}?([\d]{1,4},[\d]{2})/,
   ];
+  const found=[];
   for(const re of pats){
     const m=html.match(re);
-    if(m){
-      const p=parseFloat(m[1].replace(/\./g,'').replace(',','.'));
-      if(p>0&&p<100000) return {price:p, currency:'EUR', symbol:isin, source:'JustETF'};
-    }
+    if(!m) continue;
+    let raw=m[1];
+    const p = raw.includes(',')
+      ? parseFloat(raw.replace(/\./g,'').replace(',','.'))
+      : parseFloat(raw);
+    if(p>0) found.push(p);
   }
-  return null;
+  if(!found.length) return null;
+  // Scarta valori implausibili: devono stare entro ±60% del riferimento
+  let best=null;
+  if(ref&&ref>0){
+    const plausible=found.filter(p=>p>=ref*0.4 && p<=ref*1.6);
+    best = plausible.length ? plausible[0] : null;
+  } else {
+    // Senza riferimento accetta solo valori ragionevoli per un ETF
+    best = found.find(p=>p>=1 && p<=100000) || null;
+  }
+  if(!best) return null;
+  return {price:best, currency:'EUR', symbol:isin, source:'JustETF'};
 }
 
 // ── DIAGNOSTICA ───────────────────────────────────────────────
@@ -2631,7 +2646,7 @@ async function diagnosePrices(){
       : `<div style="color:var(--red)">❌ Stooq: nessun dato</div>`;
     // JustETF
     if(inv.isin){
-      const je=await fetchJustETF(inv);
+      const je=await fetchJustETF(inv, inv.current||inv.price);
       out+=je
         ? `<div style="color:var(--green)">✅ JustETF: ${je.price} EUR</div>`
         : `<div style="color:var(--red)">❌ JustETF: nessun dato</div>`;
@@ -2688,9 +2703,14 @@ async function _doRefresh(silent=false){
     const ticker=extractTicker(inv.name)||inv.name;
     let res=await fetchYahoo(ticker);
     if(!res) res=await fetchStooq(ticker);
-    if(!res && inv.isin) res=await fetchJustETF(inv);
+    if(!res && inv.isin) res=await fetchJustETF(inv, inv.current||inv.price);
 
-    if(res&&res.price>0){
+    // Guardia finale: uno scostamento oltre il 50% dal prezzo noto è quasi
+    // sempre un errore (borsa o valuta sbagliata), non un movimento reale.
+    const ref = inv.current || inv.price || 0;
+    const anomalo = res && ref>0 && (res.price < ref*0.5 || res.price > ref*1.5);
+
+    if(res && res.price>0 && !anomalo){
       inv.current=res.price;
       inv.lastUpdate=new Date().toISOString();
       inv.currency=res.currency||'EUR';
@@ -2698,7 +2718,7 @@ async function _doRefresh(silent=false){
       if(res.symbol) inv.resolvedSymbol=res.symbol;
       updated++;
     } else if(!silent){
-      failed.push(inv.name);
+      failed.push(inv.name + (anomalo ? ` (scartato: ${res.price} ${res.currency||''} da ${res.source})` : ''));
     }
   }
 
