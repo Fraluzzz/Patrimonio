@@ -2172,6 +2172,7 @@ function renderInvestimenti(){
       const diffPct=carico>0?((diff/carico)*100).toFixed(2):0;
       // Badge aggiornamento: separato dal nome per evitare troncamento
       const lastUpd=inv.lastUpdate?new Date(inv.lastUpdate).toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'}):null;
+      const curWarn=(inv.currency&&inv.currency!=='EUR')?`<span class="price-badge price-err" style="white-space:nowrap">${esc(inv.currency)}</span>`:'';
       const updBadge=lastUpd
         ?`<span class="price-badge price-live" style="white-space:nowrap">↻ ${lastUpd}</span>`
         :`<span class="price-badge price-err" style="white-space:nowrap">manuale</span>`;
@@ -2180,7 +2181,7 @@ function renderInvestimenti(){
         <div class="list-main" style="min-width:0">
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
             <div class="list-name" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px">${esc(inv.name)}</div>
-            ${updBadge}
+            ${updBadge}${curWarn}
           </div>
           <div class="list-sub hide-val">${inv.qty} u. · P.M. €${fmt(inv.price)}</div>
         </div>
@@ -2533,17 +2534,29 @@ async function fetchStooq(ticker){
   }catch(e){return null;}
 }
 
-// Fonte 2: Yahoo Finance via proxy
+// Fonte 2: Yahoo Finance via proxy — prova più borse automaticamente
 async function fetchYahoo(ticker){
-  try{
-    const url=`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=1d`;
-    const proxy=`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
-    const resp=await fetch(proxy,{signal:AbortSignal.timeout(8000)});
-    const data=await resp.json();
-    const parsed=JSON.parse(data.contents);
-    const price=parsed?.chart?.result?.[0]?.meta?.regularMarketPrice;
-    return(price&&price>0)?price:null;
-  }catch(e){return null;}
+  // Se il ticker ha già un suffisso di borsa, prova solo quello
+  const hasSuffix=/\.[A-Z]{1,2}$/i.test(ticker);
+  const base=ticker.replace(/\.[A-Z]{1,2}$/i,'');
+  // Ordine: borse in EUR prima (Milano, Amsterdam, Xetra), poi Londra, poi USA
+  const candidates = hasSuffix ? [ticker] : [`${base}.MI`,`${base}.AS`,`${base}.DE`,`${base}.L`,base];
+  for(const t of candidates){
+    try{
+      const url=`https://query1.finance.yahoo.com/v8/finance/chart/${t}?interval=1d&range=1d`;
+      const proxy=`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+      const resp=await fetch(proxy,{signal:AbortSignal.timeout(8000)});
+      const data=await resp.json();
+      const parsed=JSON.parse(data.contents);
+      const meta=parsed?.chart?.result?.[0]?.meta;
+      const price=meta?.regularMarketPrice;
+      if(price&&price>0){
+        // Segnala la valuta se non è EUR (l'utente deve saperlo)
+        return {price, currency: meta.currency||'EUR', symbol:t};
+      }
+    }catch(e){}
+  }
+  return null;
 }
 
 // Fonte 3: JustETF via proxy (fallback per ISIN)
@@ -2592,23 +2605,31 @@ async function _doRefresh(silent=false){
     }catch(e){if(!silent) cryptos.forEach(i=>failed.push(i.name));}
   }
 
-  // ── ETF/Azioni: prova Stooq → Yahoo → JustETF ──
+  // ── ETF/Azioni: prova Yahoo (multi-borsa) → Stooq → JustETF ──
   for(const inv of others){
-    let price=null;
+    let price=null, info=null;
     const ticker=extractTicker(inv.name);
 
-    // 1. Stooq (più affidabile, CSV diretto)
-    if(ticker) price=await fetchStooq(ticker);
+    // 1. Yahoo Finance con ricerca automatica della borsa
+    if(ticker){
+      const y=await fetchYahoo(ticker);
+      if(y){
+        price=y.price; info=y;
+        // Salva il simbolo che ha funzionato per le volte successive
+        if(y.symbol && y.symbol!==ticker) inv.yahooSymbol=y.symbol;
+      }
+    }
 
-    // 2. Yahoo Finance
-    if(!price && ticker) price=await fetchYahoo(ticker);
+    // 2. Stooq
+    if(!price && ticker) price=await fetchStooq(ticker);
 
-    // 3. JustETF via ISIN (ultimo tentativo)
+    // 3. JustETF via ISIN
     if(!price && inv.isin) price=await fetchJustETF(inv);
 
     if(price){
       inv.current=price;
       inv.lastUpdate=new Date().toISOString();
+      if(info?.currency) inv.currency=info.currency;
       updated++;
     } else if(!silent){
       failed.push(inv.name);
@@ -2625,7 +2646,7 @@ async function _doRefresh(silent=false){
     } else if(updated){
       toast(`${updated} aggiornati · ${failed.length} non trovati`,'err');
     } else {
-      alert(`Nessun prezzo aggiornato automaticamente.\n\nNon trovati: ${failed.join(', ')}\n\nSoluzioni:\n• Per VHVE usa "VHVE.AS - FTSE Developed World" con ISIN IE00B4L5Y983\n• Aggiorna il prezzo manualmente con ✏️\n• I proxy possono essere temporaneamente offline — riprova tra qualche minuto`);
+      alert(`Nessun prezzo aggiornato automaticamente.\n\nNon trovati: ${failed.join(', ')}\n\nSoluzioni:\n• Per VHVE usa "VHVE.MI" (Milano, in EUR)\n• Aggiorna il prezzo manualmente con ✏️\n• I proxy possono essere temporaneamente offline — riprova tra qualche minuto`);
     }
   }
 }
