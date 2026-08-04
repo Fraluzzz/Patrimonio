@@ -303,6 +303,16 @@ select.form-input{cursor:pointer}
     <div class="card" id="investments-list"></div>
   </div>
   <div class="section">
+    <div class="section-title">Diagnostica prezzi</div>
+    <div class="card">
+      <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:12px">
+        Se i prezzi non si aggiornano, esegui il test per capire quale fonte funziona.
+      </div>
+      <button class="btn-secondary" style="margin-top:0" onclick="diagnosePrices()">🔬 Testa fonti prezzi</button>
+      <div id="diag-result" style="display:none;margin-top:14px;font-size:12px;line-height:1.7;background:var(--bg3);padding:14px;border-radius:var(--radius-sm)"></div>
+    </div>
+  </div>
+  <div class="section">
     <div class="section-title">Allocazione investimenti</div>
     <div class="card">
       <div class="donut-wrap">
@@ -2174,7 +2184,7 @@ function renderInvestimenti(){
       const lastUpd=inv.lastUpdate?new Date(inv.lastUpdate).toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'}):null;
       const curWarn=(inv.currency&&inv.currency!=='EUR')?`<span class="price-badge price-err" style="white-space:nowrap">${esc(inv.currency)}</span>`:'';
       const updBadge=lastUpd
-        ?`<span class="price-badge price-live" style="white-space:nowrap">↻ ${lastUpd}</span>`
+        ?`<span class="price-badge price-live" style="white-space:nowrap">↻ ${lastUpd}${inv.priceSource?' · '+esc(inv.priceSource):''}</span>`
         :`<span class="price-badge price-err" style="white-space:nowrap">manuale</span>`;
       return`<div class="list-item">
         <div class="list-icon" style="background:var(--bg3)">${icons[inv.type]||'💰'}</div>
@@ -2515,66 +2525,134 @@ function extractTicker(name){
   return null;
 }
 
-// Fonte 1: Stooq (affidabile, CSV, no CORS issues via allorigins)
-async function fetchStooq(ticker){
-  try{
-    // Stooq usa formato TICKER.UK/.US/.EU ecc — prova prima il ticker diretto
-    const t=ticker.replace('.AS','.NL').replace('.L','.UK').replace('.DE','.DE')||ticker;
-    const url=`https://stooq.com/q/l/?s=${encodeURIComponent(t.toLowerCase())}&f=sd2t2ohlcv&h&e=csv`;
-    const proxy=`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
-    const resp=await fetch(proxy,{signal:AbortSignal.timeout(8000)});
-    const data=await resp.json();
-    const csv=data.contents||'';
-    // CSV: Name,Date,Time,Open,High,Low,Close,Volume
-    const lines=csv.trim().split('\n');
-    if(lines.length<2) return null;
-    const cols=lines[1].split(',');
-    const close=parseFloat(cols[6]);
-    return(close&&close>0)?close:null;
-  }catch(e){return null;}
-}
+// ── PROXY CORS: più fallback ──────────────────────────────────
+const CORS_PROXIES=[
+  u=>`https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+  u=>`https://corsproxy.io/?url=${encodeURIComponent(u)}`,
+  u=>`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
+  u=>`https://thingproxy.freeboard.io/fetch/${u}`,
+];
 
-// Fonte 2: Yahoo Finance via proxy — prova più borse automaticamente
-async function fetchYahoo(ticker){
-  // Se il ticker ha già un suffisso di borsa, prova solo quello
-  const hasSuffix=/\.[A-Z]{1,2}$/i.test(ticker);
-  const base=ticker.replace(/\.[A-Z]{1,2}$/i,'');
-  // Ordine: borse in EUR prima (Milano, Amsterdam, Xetra), poi Londra, poi USA
-  const candidates = hasSuffix ? [ticker] : [`${base}.MI`,`${base}.AS`,`${base}.DE`,`${base}.L`,base];
-  for(const t of candidates){
+// Scarica un URL provando i proxy in sequenza. Ritorna il testo grezzo.
+async function proxyFetch(url, timeout=9000){
+  for(const mk of CORS_PROXIES){
     try{
-      const url=`https://query1.finance.yahoo.com/v8/finance/chart/${t}?interval=1d&range=1d`;
-      const proxy=`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
-      const resp=await fetch(proxy,{signal:AbortSignal.timeout(8000)});
-      const data=await resp.json();
-      const parsed=JSON.parse(data.contents);
-      const meta=parsed?.chart?.result?.[0]?.meta;
-      const price=meta?.regularMarketPrice;
-      if(price&&price>0){
-        // Segnala la valuta se non è EUR (l'utente deve saperlo)
-        return {price, currency: meta.currency||'EUR', symbol:t};
-      }
+      const r=await fetch(mk(url),{signal:AbortSignal.timeout(timeout)});
+      if(!r.ok) continue;
+      const t=await r.text();
+      if(t && t.length>10) return t;
     }catch(e){}
   }
   return null;
 }
 
-// Fonte 3: JustETF via proxy (fallback per ISIN)
+// Fonte 1: Yahoo Finance — prova più borse automaticamente
+async function fetchYahoo(ticker){
+  const hasSuffix=/\.[A-Z]{1,2}$/i.test(ticker);
+  const base=ticker.replace(/\.[A-Z]{1,2}$/i,'').toUpperCase();
+  const candidates = hasSuffix ? [ticker.toUpperCase()] : [`${base}.MI`,`${base}.AS`,`${base}.DE`,`${base}.L`,base];
+  for(const t of candidates){
+    const url=`https://query1.finance.yahoo.com/v8/finance/chart/${t}?interval=1d&range=1d`;
+    const txt=await proxyFetch(url);
+    if(!txt) continue;
+    try{
+      const parsed=JSON.parse(txt);
+      const meta=parsed?.chart?.result?.[0]?.meta;
+      const price=meta?.regularMarketPrice;
+      if(price&&price>0) return {price, currency:meta.currency||'EUR', symbol:t, source:'Yahoo'};
+    }catch(e){}
+  }
+  return null;
+}
+
+// Fonte 2: Stooq (CSV)
+async function fetchStooq(ticker){
+  const base=ticker.replace(/\.[A-Z]{1,2}$/i,'').toLowerCase();
+  const variants=[`${base}.uk`,`${base}.de`,`${base}.nl`,base];
+  for(const t of variants){
+    const url=`https://stooq.com/q/l/?s=${encodeURIComponent(t)}&f=sd2t2ohlcv&h&e=csv`;
+    const csv=await proxyFetch(url,7000);
+    if(!csv) continue;
+    const lines=csv.trim().split('\n');
+    if(lines.length<2) continue;
+    const cols=lines[1].split(',');
+    const close=parseFloat(cols[6]);
+    if(close&&close>0) return {price:close, currency:'EUR', symbol:t, source:'Stooq'};
+  }
+  return null;
+}
+
+// Fonte 3: JustETF via ISIN
 async function fetchJustETF(inv){
   const isin=inv.isin;
   if(!isin||!/^[A-Z]{2}[A-Z0-9]{10}$/.test(isin)) return null;
-  try{
-    const url=`https://www.justetf.com/it/etf-profile.html?isin=${isin}`;
-    const proxy=`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
-    const resp=await fetch(proxy,{signal:AbortSignal.timeout(10000)});
-    const data=await resp.json();
-    const html=data.contents||'';
-    const m1=html.match(/class="val"[^>]*>\s*([\d]+[,.][\d]+)\s*€/);
-    if(m1){const p=parseFloat(m1[1].replace(',','.'));if(p>0)return p;}
-    const m2=html.match(/"regularMarketPrice"\s*:\s*([\d.]+)/);
-    if(m2){const p=parseFloat(m2[1]);if(p>0)return p;}
-  }catch(e){}
+  const url=`https://www.justetf.com/it/etf-profile.html?isin=${isin}`;
+  const html=await proxyFetch(url,11000);
+  if(!html) return null;
+  const pats=[
+    /class="val"[^>]*>\s*(?:EUR|€)?\s*([\d.]+,[\d]+)/,
+    /"regularMarketPrice"\s*:\s*([\d.]+)/,
+    /Quotazione[\s\S]{0,200}?([\d]{1,4},[\d]{2})/,
+    /€\s*([\d]{1,4},[\d]{2})/,
+  ];
+  for(const re of pats){
+    const m=html.match(re);
+    if(m){
+      const p=parseFloat(m[1].replace(/\./g,'').replace(',','.'));
+      if(p>0&&p<100000) return {price:p, currency:'EUR', symbol:isin, source:'JustETF'};
+    }
+  }
   return null;
+}
+
+// ── DIAGNOSTICA ───────────────────────────────────────────────
+async function diagnosePrices(){
+  syncCategories();
+  const others=state.investments.filter(i=>i.type!=='crypto');
+  if(!others.length){toast('Nessun ETF o azione da testare');return;}
+  const el=document.getElementById('diag-result');
+  el.style.display='block';
+  el.innerHTML='<span style="color:var(--text2)">Test in corso, attendi…</span>';
+  let out='';
+  for(const inv of others){
+    const ticker=extractTicker(inv.name)||inv.name;
+    out+=`<div style="margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border)">
+      <div style="font-weight:700;margin-bottom:8px">${esc(inv.name)}</div>
+      <div style="color:var(--text3);font-size:11px;margin-bottom:8px">Ticker rilevato: <strong>${esc(ticker)}</strong>${inv.isin?' · ISIN: '+esc(inv.isin):''}</div>`;
+    // Yahoo
+    const y=await fetchYahoo(ticker);
+    out+=y
+      ? `<div style="color:var(--green)">✅ Yahoo (${esc(y.symbol)}): ${y.price} ${esc(y.currency)}</div>`
+      : `<div style="color:var(--red)">❌ Yahoo: nessun dato</div>`;
+    // Stooq
+    const st=await fetchStooq(ticker);
+    out+=st
+      ? `<div style="color:var(--green)">✅ Stooq (${esc(st.symbol)}): ${st.price}</div>`
+      : `<div style="color:var(--red)">❌ Stooq: nessun dato</div>`;
+    // JustETF
+    if(inv.isin){
+      const je=await fetchJustETF(inv);
+      out+=je
+        ? `<div style="color:var(--green)">✅ JustETF: ${je.price} EUR</div>`
+        : `<div style="color:var(--red)">❌ JustETF: nessun dato</div>`;
+    }
+    out+='</div>';
+    el.innerHTML=out;
+  }
+  // Test proxy
+  out+='<div style="font-weight:700;margin-bottom:8px">Stato proxy</div>';
+  const testUrl='https://query1.finance.yahoo.com/v8/finance/chart/AAPL?interval=1d&range=1d';
+  for(let k=0;k<CORS_PROXIES.length;k++){
+    let ok=false;
+    try{
+      const r=await fetch(CORS_PROXIES[k](testUrl),{signal:AbortSignal.timeout(7000)});
+      const t=await r.text();
+      ok=r.ok && t.includes('regularMarketPrice');
+    }catch(e){}
+    const nome=['allorigins','corsproxy.io','codetabs','thingproxy'][k];
+    out+=`<div style="color:${ok?'var(--green)':'var(--red)'}">${ok?'✅':'❌'} ${nome}</div>`;
+    el.innerHTML=out;
+  }
 }
 
 let isRefreshing=false;
@@ -2605,31 +2683,19 @@ async function _doRefresh(silent=false){
     }catch(e){if(!silent) cryptos.forEach(i=>failed.push(i.name));}
   }
 
-  // ── ETF/Azioni: prova Yahoo (multi-borsa) → Stooq → JustETF ──
+  // ── ETF/Azioni: Yahoo (multi-borsa) → Stooq → JustETF ──
   for(const inv of others){
-    let price=null, info=null;
-    const ticker=extractTicker(inv.name);
+    const ticker=extractTicker(inv.name)||inv.name;
+    let res=await fetchYahoo(ticker);
+    if(!res) res=await fetchStooq(ticker);
+    if(!res && inv.isin) res=await fetchJustETF(inv);
 
-    // 1. Yahoo Finance con ricerca automatica della borsa
-    if(ticker){
-      const y=await fetchYahoo(ticker);
-      if(y){
-        price=y.price; info=y;
-        // Salva il simbolo che ha funzionato per le volte successive
-        if(y.symbol && y.symbol!==ticker) inv.yahooSymbol=y.symbol;
-      }
-    }
-
-    // 2. Stooq
-    if(!price && ticker) price=await fetchStooq(ticker);
-
-    // 3. JustETF via ISIN
-    if(!price && inv.isin) price=await fetchJustETF(inv);
-
-    if(price){
-      inv.current=price;
+    if(res&&res.price>0){
+      inv.current=res.price;
       inv.lastUpdate=new Date().toISOString();
-      if(info?.currency) inv.currency=info.currency;
+      inv.currency=res.currency||'EUR';
+      inv.priceSource=res.source;
+      if(res.symbol) inv.resolvedSymbol=res.symbol;
       updated++;
     } else if(!silent){
       failed.push(inv.name);
