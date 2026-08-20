@@ -506,6 +506,31 @@ select.form-input{cursor:pointer}
   </div>
 
   <div class="section">
+    <div class="section-title">Google Fogli</div>
+    <div class="set-group">
+      <button class="set-row" onclick="openSheetModal()">
+        <span class="set-icon" style="background:rgba(34,197,94,.14);color:#22C55E"><svg><use href="#i-export"/></svg></span>
+        <span class="set-body"><span class="set-lbl">Foglio collegato</span><span class="set-sub" id="sheet-status">Nessuno</span></span>
+        <svg class="row-arrow"><use href="#i-chevron"/></svg>
+      </button>
+      <button class="set-row" onclick="toggleSheetAuto()">
+        <span class="set-icon" style="background:rgba(59,130,246,.14);color:var(--accent)"><svg><use href="#i-refresh"/></svg></span>
+        <span class="set-body"><span class="set-lbl">Sincronizza in automatico</span><span class="set-sub" id="sheet-auto-status">Disattivata</span></span>
+        <span class="toggle" id="sheet-auto-toggle"></span>
+      </button>
+      <button class="set-row" id="sheet-sync-row" onclick="syncToSheet()">
+        <span class="set-icon" style="background:rgba(34,197,94,.14);color:#22C55E"><svg><use href="#i-arrow-out"/></svg></span>
+        <span class="set-body"><span class="set-lbl" id="sheet-sync-btn">Sincronizza ora</span><span class="set-sub">Invia tutti i dati al foglio</span></span>
+        <svg class="row-arrow"><use href="#i-chevron"/></svg>
+      </button>
+      <button class="set-row" onclick="pullFromSheet()">
+        <span class="set-icon" style="background:rgba(245,158,11,.14);color:var(--yellow)"><svg><use href="#i-arrow-in"/></svg></span>
+        <span class="set-body"><span class="set-lbl">Importa dal foglio</span><span class="set-sub">Sostituisce le transazioni dell'app</span></span>
+        <svg class="row-arrow"><use href="#i-chevron"/></svg>
+      </button>
+    </div>
+  </div>
+  <div class="section">
     <div class="section-title">Dati</div>
     <div class="set-group">
       <button class="set-row" onclick="openModal('exportModal')">
@@ -544,7 +569,7 @@ select.form-input{cursor:pointer}
 
   <div class="section" style="padding-bottom:24px">
     <div style="text-align:center;font-size:12px;color:var(--text3);line-height:1.7">
-      Patrimonio v5.3<br>
+      Patrimonio v5.5<br>
       I dati sono salvati solo su questo dispositivo
     </div>
   </div>
@@ -795,6 +820,25 @@ select.form-input{cursor:pointer}
   </div>
 </div>
 
+<!-- MODAL: GOOGLE FOGLI -->
+<div class="modal-overlay" id="sheetModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Collega Google Fogli</div>
+    <p style="font-size:13px;color:var(--text2);line-height:1.65;margin-bottom:18px">
+      Transazioni, conti, investimenti, crediti/debiti, obiettivi, categorie e budget vengono scritti in un tuo foglio Google. Serve l'URL di uno script pubblicato: le istruzioni sono nel file <strong>apps-script.gs</strong>.
+    </p>
+    <div class="form-group">
+      <label class="form-label">URL DELLA WEB APP</label>
+      <input type="url" class="form-input" id="sheet-url-input" placeholder="https://script.google.com/macros/s/.../exec" autocapitalize="off" spellcheck="false">
+    </div>
+    <div id="sheet-test-result" style="display:none;font-size:13px;line-height:1.6;margin-bottom:16px;padding:12px;background:var(--bg3);border-radius:var(--radius-sm)"></div>
+    <button class="btn-secondary" style="margin-top:0" onclick="testSheet()">Verifica collegamento</button>
+    <button class="btn-primary" onclick="saveSheetUrl()">Salva</button>
+    <button class="btn-secondary" onclick="closeModal('sheetModal')">Annulla</button>
+  </div>
+</div>
+
 <!-- MODAL: GESTIONE CATEGORIE -->
 <div class="modal-overlay" id="catMgrModal">
   <div class="modal">
@@ -960,6 +1004,7 @@ let state = {
   currentMonth:new Date().getMonth(), currentYear:new Date().getFullYear(),
   viewMode:'mese', currentWeekOffset:0,
   categorie:null, tags:[],
+  sheetUrl:null, sheetAuto:false, sheetLastSync:null, geminiModel:null,
 };
 const DEFAULT_CATEGORIES=[
   {id:'cibo',       label:'🍽️ Cibo fuori',     color:'#f59e0b'},
@@ -1043,15 +1088,15 @@ function loadState(){
 
 // ── PATRIMONIO STORICO ────────────────────────────────────────
 function snapshotPatrimonio(){
+  // Registra il patrimonio del giorno: alimenta lo storico esportato nel backup
+  // e nel foglio Google. Un valore al giorno, ultimi 365.
   const today=new Date().toISOString().split('T')[0];
   const cash=state.conti.reduce((s,c)=>s+c.saldo,0);
   const inv=state.investments.reduce((s,i)=>s+i.qty*i.current,0);
   const val=cash+inv;
   if(!state.patrimonioStorico) state.patrimonioStorico=[];
-  const existing=state.patrimonioStorico.find(p=>p.date===today);
-  if(existing) existing.value=val;
-  else state.patrimonioStorico.push({date:today,value:val});
-  state.patrimonioStorico.sort((a,b)=>a.date.localeCompare(b.date));
+  const ex=state.patrimonioStorico.find(p=>p.date===today);
+  if(ex) ex.value=val; else state.patrimonioStorico.push({date:today,value:val});
   if(state.patrimonioStorico.length>365) state.patrimonioStorico=state.patrimonioStorico.slice(-365);
 }
 
@@ -1223,7 +1268,7 @@ function saveTransaction(){
     state.transactions.push({id:Date.now(),amount,desc,cat:selectedCat,type:selectedType,date:date||new Date().toISOString().split('T')[0],contoId,tag});
     if(contoId){const c=state.conti.find(c=>c.id===contoId);if(c)c.saldo+=selectedType==='entrata'?amount:-amount;}
   }
-  snapshotPatrimonio();saveState();closeModal('addModal');renderAll();
+  snapshotPatrimonio();saveState();closeModal('addModal');renderAll();scheduleSync();
   toast(wasEdit?'Transazione aggiornata':(selectedType==='entrata'?'Entrata registrata':'Spesa registrata'),'ok');
 }
 
@@ -1233,7 +1278,7 @@ function deleteTransaction(id){
   if(!confirm('Eliminare questa transazione?'))return;
   if(tx.contoId){const c=state.conti.find(c=>c.id===tx.contoId);if(c)c.saldo+=tx.type==='entrata'?-tx.amount:tx.amount;}
   state.transactions=state.transactions.filter(t=>t.id!==id);
-  snapshotPatrimonio();saveState();renderAll();
+  snapshotPatrimonio();saveState();renderAll();scheduleSync();
 }
 
 // ── AI SCONTRINO ──────────────────────────────────────────────
@@ -1570,11 +1615,11 @@ function saveInvestment(){
       }
     }
   }
-  snapshotPatrimonio();saveState();closeModal('investModal');renderAll();
+  snapshotPatrimonio();saveState();closeModal('investModal');renderAll();scheduleSync();
   toast('Investimento salvato','ok');
 }
 
-function deleteInvestment(id){if(!confirm('Eliminare?'))return;state.investments=state.investments.filter(i=>i.id!==id);snapshotPatrimonio();saveState();renderAll();}
+function deleteInvestment(id){if(!confirm('Eliminare?'))return;state.investments=state.investments.filter(i=>i.id!==id);snapshotPatrimonio();saveState();renderAll();scheduleSync();}
 
 // ── CONTI ─────────────────────────────────────────────────────
 function initContoModal(id){
@@ -1617,7 +1662,7 @@ function saveConto(){
     state.conti.push({id:Date.now(),name,type,saldo});
     toast(`Conto "${name}" aggiunto`,'ok');
   }
-  snapshotPatrimonio();saveState();closeModal('contoModal');renderAll();
+  snapshotPatrimonio();saveState();closeModal('contoModal');renderAll();scheduleSync();
 }
 function deleteConto(id){
   const c=state.conti.find(x=>x.id===id);
@@ -1629,7 +1674,7 @@ function deleteConto(id){
   if(!confirm(msg))return;
   state.transactions.forEach(t=>{if(t.contoId===id)t.contoId=null;});
   state.conti=state.conti.filter(x=>x.id!==id);
-  snapshotPatrimonio();saveState();renderAll();
+  snapshotPatrimonio();saveState();renderAll();scheduleSync();
   toast(`Conto "${c.name}" eliminato`,'ok');
 }
 
@@ -1657,12 +1702,12 @@ function saveTrasferimento(){
   cDa.saldo-=amount;cA.saldo+=amount;
   if(!state.trasferimenti)state.trasferimenti=[];
   state.trasferimenti.push({id:Date.now(),daId,aId,daNome:cDa.name,aNome:cA.name,amount,date,note:note||`${cDa.name} → ${cA.name}`});
-  snapshotPatrimonio();saveState();closeModal('trasferimentoModal');renderAll();
+  snapshotPatrimonio();saveState();closeModal('trasferimentoModal');renderAll();scheduleSync();
   toast(`€${fmt(amount)} trasferiti a ${cA.name}`,'ok');
 }
 
 // ── BUDGET ────────────────────────────────────────────────────
-function saveBudget(){const v=parseFloat(document.getElementById('budget-input').value);if(!v||v<=0)return toast('Inserisci un importo valido','err');state.budget=v;saveState();closeModal('budgetModal');renderAll();toast('Budget aggiornato','ok');}
+function saveBudget(){const v=parseFloat(document.getElementById('budget-input').value);if(!v||v<=0)return toast('Inserisci un importo valido','err');state.budget=v;saveState();closeModal('budgetModal');renderAll();scheduleSync();toast('Budget aggiornato','ok');}
 
 // ── DEBITI ────────────────────────────────────────────────────
 function initDebitoModal(){
@@ -1693,7 +1738,7 @@ function saveDebito(){
     }
   }
   state.debiti.push({id:Date.now(),tipo:selectedDebitoType,persona,amount,motivo,contoId,scadenza,note,saldato:false,dataCreazione:new Date().toISOString().split('T')[0]});
-  snapshotPatrimonio();saveState();closeModal('debitoModal');renderAll();
+  snapshotPatrimonio();saveState();closeModal('debitoModal');renderAll();scheduleSync();
   toast(selectedDebitoType==='attivo'?'Credito registrato':'Debito registrato','ok');
 }
 function toggleSaldato(id){
@@ -1712,9 +1757,9 @@ function toggleSaldato(id){
     }
   }
   d.saldato=!d.saldato;
-  snapshotPatrimonio();saveState();renderAll();
+  snapshotPatrimonio();saveState();renderAll();scheduleSync();
 }
-function deleteDebito(id){if(!confirm('Eliminare?'))return;state.debiti=state.debiti.filter(d=>d.id!==id);saveState();renderAll();}
+function deleteDebito(id){if(!confirm('Eliminare?'))return;state.debiti=state.debiti.filter(d=>d.id!==id);saveState();renderAll();scheduleSync();}
 
 // ── OBIETTIVI ─────────────────────────────────────────────────
 function openObiettivoModal(id){
@@ -1747,13 +1792,182 @@ function saveObiettivo(){
   } else {
     state.obiettivi.push({id:Date.now(),nome,target,current,scadenza,emoji});
   }
-  saveState();closeModal('obiettivoModal');renderAll();
+  saveState();closeModal('obiettivoModal');renderAll();scheduleSync();
   toast('Obiettivo salvato','ok');
 }
-function deleteObiettivo(id){if(!confirm('Eliminare obiettivo?'))return;state.obiettivi=state.obiettivi.filter(o=>o.id!==id);saveState();renderAll();}
+function deleteObiettivo(id){if(!confirm('Eliminare obiettivo?'))return;state.obiettivi=state.obiettivi.filter(o=>o.id!==id);saveState();renderAll();scheduleSync();}
 
 // ── BINANCE ───────────────────────────────────────────────────
 function saveBinanceKey(){state.binanceKey=document.getElementById('binance-key').value.trim()||null;saveState();closeModal('binanceModal');renderAll();}
+
+// ── SINCRONIZZAZIONE GOOGLE FOGLI ─────────────────────────────
+// Passa da un Apps Script pubblicato come Web App: nessun OAuth,
+// nessuna credenziale nel codice. L'URL sta solo su questo dispositivo.
+let syncing=false;
+
+function txToSheet(t){
+  const cat=CATEGORIES.find(c=>c.id===t.cat);
+  const conto=state.conti.find(c=>c.id===t.contoId);
+  return {
+    id:String(t.id), date:t.date, type:t.type, desc:t.desc,
+    amount:t.amount,
+    category:(cat?cat.label.replace(/^\S+\s/,''):'Altro'),
+    account:(conto?conto.name:''),
+    tags:txTags(t)
+  };
+}
+
+/** Raccoglie l'intero stato dell'app nel formato atteso dal foglio */
+function buildSheetPayload(){
+  syncCategories();
+  const tipoConto={banca:'Conto bancario',broker:'Broker',crypto:'Exchange',contanti:'Contanti',altro:'Altro'};
+  const tipoInv={etf:'ETF',azione:'Azione',crypto:'Crypto',altro:'Altro'};
+  return {
+    action:'sync',
+    transactions: state.transactions.map(txToSheet),
+    conti: state.conti.map(c=>({
+      id:String(c.id), name:c.name, type:tipoConto[c.type]||'Altro', saldo:c.saldo
+    })),
+    investments: state.investments.map(i=>({
+      id:String(i.id), name:i.name, type:tipoInv[i.type]||'Altro',
+      ticker:(i.isin||extractTicker(i.name)||i.name),
+      qty:i.qty, price:i.price, current:i.current
+    })),
+    debiti: (state.debiti||[]).map(d=>{
+      const conto=state.conti.find(c=>c.id===d.contoId);
+      return {
+        id:String(d.id), tipo:d.tipo, persona:d.persona, motivo:d.motivo||'',
+        amount:d.amount, conto:(conto?conto.name:''),
+        scadenza:d.scadenza||'', saldato:!!d.saldato, note:d.note||''
+      };
+    }),
+    obiettivi: (state.obiettivi||[]).map(o=>({
+      id:String(o.id), nome:((o.emoji?o.emoji+' ':'')+o.nome),
+      current:o.current, target:o.target, scadenza:o.scadenza||''
+    })),
+    settings: {
+      budget: state.budget||0,
+      categorie: CATEGORIES.map(c=>({id:c.id,label:c.label,color:c.color})),
+      tags: allTags()
+    }
+  };
+}
+
+async function sheetCall(payload){
+  if(!state.sheetUrl) throw new Error('Nessun foglio collegato');
+  const r=await fetch(state.sheetUrl,{
+    method:'POST', redirect:'follow',
+    headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body:JSON.stringify(payload)
+  });
+  const txt=await r.text();
+  let d; try{ d=JSON.parse(txt); }catch(e){ throw new Error('Risposta non valida dal foglio'); }
+  if(!d.ok) throw new Error(d.error||'Errore sconosciuto');
+  return d;
+}
+
+async function syncToSheet(silent){
+  if(syncing) return;
+  if(!state.sheetUrl){ if(!silent) toast('Collega prima un foglio','err'); return; }
+  syncing=true;
+  const btn=document.getElementById('sheet-sync-btn');
+  if(btn) btn.textContent='Sincronizzazione…';
+  try{
+    const d=await sheetCall(buildSheetPayload());
+    state.sheetLastSync=new Date().toISOString();
+    saveState(); renderSettings();
+    if(!silent){
+      const t=d.transazioni||{};
+      const parti=[];
+      if(t.added) parti.push(t.added+' aggiunte');
+      if(t.updated) parti.push(t.updated+' aggiornate');
+      if(t.removed) parti.push(t.removed+' rimosse');
+      toast(parti.length?('Transazioni: '+parti.join(' · ')):'Foglio allineato','ok');
+    }
+  }catch(e){
+    if(!silent) toast('Errore: '+e.message,'err');
+  }
+  syncing=false;
+  if(btn) btn.textContent='Sincronizza ora';
+}
+
+async function pullFromSheet(){
+  if(!state.sheetUrl){ toast('Collega prima un foglio','err'); return; }
+  if(!confirm('Le transazioni del foglio sostituiranno quelle dell\'app.\n\nLe modifiche fatte qui e non ancora sincronizzate andranno perse. Continuare?')) return;
+  try{
+    const d=await sheetCall({action:'pull'});
+    const catByName={};
+    CATEGORIES.forEach(c=>{ catByName[c.label.replace(/^\S+\s/,'').toLowerCase()]=c.id; });
+    const contoByName={};
+    state.conti.forEach(c=>{ contoByName[c.name.toLowerCase()]=c.id; });
+
+    state.transactions=(d.transactions||[]).map(t=>({
+      id:Number(t.id)||Date.now()+Math.random(),
+      date:t.date, type:t.type, desc:t.desc, amount:Number(t.amount)||0,
+      cat:catByName[String(t.category).toLowerCase()]||'altro',
+      contoId:contoByName[String(t.account).toLowerCase()]||null,
+      tag:(t.tags&&t.tags.length)?t.tags:null
+    }));
+    // registra eventuali tag nuovi arrivati dal foglio
+    if(!state.tags) state.tags=[];
+    state.transactions.flatMap(t=>txTags(t)).forEach(tg=>{
+      if(!state.tags.includes(tg)) state.tags.push(tg);
+    });
+    state.sheetLastSync=new Date().toISOString();
+    saveState(); renderAll();
+    toast(`${state.transactions.length} transazioni importate`,'ok');
+  }catch(e){ toast('Errore: '+e.message,'err'); }
+}
+
+async function testSheet(){
+  const url=document.getElementById('sheet-url-input').value.trim();
+  const el=document.getElementById('sheet-test-result');
+  if(!url){ toast('Incolla prima l\'URL','err'); return; }
+  if(!/^https:\/\/script\.google\.com\/.*\/exec$/.test(url)){
+    el.style.display='block';
+    el.innerHTML='<span style="color:var(--red)">L\'URL deve iniziare con https://script.google.com e finire con /exec</span>';
+    return;
+  }
+  el.style.display='block';
+  el.innerHTML='<span style="color:var(--text2)">Verifica in corso…</span>';
+  const prev=state.sheetUrl; state.sheetUrl=url;
+  try{
+    const d=await sheetCall({action:'ping'});
+    el.innerHTML=`<span style="color:var(--green)">Collegato a: <strong>${esc(d.sheet||'foglio')}</strong></span>`;
+  }catch(e){
+    state.sheetUrl=prev;
+    el.innerHTML=`<span style="color:var(--red)">${esc(e.message)}</span>`;
+  }
+}
+
+function openSheetModal(){
+  document.getElementById('sheet-url-input').value=state.sheetUrl||'';
+  document.getElementById('sheet-test-result').style.display='none';
+  openModal('sheetModal');
+}
+
+function saveSheetUrl(){
+  const url=document.getElementById('sheet-url-input').value.trim();
+  state.sheetUrl=url||null;
+  if(!url) state.sheetAuto=false;
+  saveState(); closeModal('sheetModal'); renderSettings();
+  toast(url?'Foglio collegato':'Collegamento rimosso','ok');
+}
+
+function toggleSheetAuto(){
+  if(!state.sheetUrl){ toast('Collega prima un foglio','err'); return; }
+  state.sheetAuto=!state.sheetAuto;
+  saveState(); renderSettings();
+  toast(state.sheetAuto?'Sincronizzazione automatica attiva':'Sincronizzazione automatica disattivata','ok');
+}
+
+// Invio differito: raggruppa più modifiche ravvicinate in una sola chiamata
+let syncTimer=null;
+function scheduleSync(){
+  if(!state.sheetUrl||!state.sheetAuto) return;
+  clearTimeout(syncTimer);
+  syncTimer=setTimeout(()=>syncToSheet(true), 2500);
+}
 
 // ── TOAST ─────────────────────────────────────────────────────
 function toast(msg, kind){
@@ -1847,7 +2061,7 @@ function saveCategoria(){
     state.categorie.push({id,label:catEmoji+' '+nome,color:catColor});
   }
   editingCatId=null;
-  saveState();closeModal('catEditModal');renderAll();openModal('catMgrModal');
+  saveState();closeModal('catEditModal');renderAll();openModal('catMgrModal');scheduleSync();
   toast('Categoria salvata','ok');
 }
 
@@ -2152,43 +2366,6 @@ function drawDonut(canvasId,legendId,segments){
     <span class="legend-val hide-val">€${fmt(sg.value)}</span>
     <span class="legend-pct">${((sg.value/total)*100).toFixed(0)}%</span>
   </div>`).join('');
-}
-
-function drawLineChart(canvasId,data){
-  const canvas=document.getElementById(canvasId);if(!canvas)return;
-  const ctx=canvas.getContext('2d');
-  const W=canvas.parentElement.clientWidth||300;
-  canvas.width=Math.max(W,300);canvas.height=120;
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  if(!data||data.length<2){ctx.fillStyle='#475569';ctx.font='13px -apple-system';ctx.textAlign='center';ctx.fillText(data&&data.length===1?`Patrimonio: €${fmt(data[0].value)}`:'Dati insufficienti — torna domani',canvas.width/2,60);return;}
-  const vals=data.map(d=>d.value);
-  const minV=Math.min(...vals),maxV=Math.max(...vals);
-  const range=maxV-minV||1;
-  const pad={t:10,b:24,l:10,r:10};
-  const W2=canvas.width-pad.l-pad.r,H2=canvas.height-pad.t-pad.b;
-  const pts=data.map((d,i)=>({x:pad.l+i*(W2/(data.length-1)),y:pad.t+H2-(((d.value-minV)/range)*H2)}));
-  // Gradient fill
-  const grad=ctx.createLinearGradient(0,pad.t,0,pad.t+H2);
-  grad.addColorStop(0,'rgba(59,130,246,0.3)');grad.addColorStop(1,'rgba(59,130,246,0)');
-  ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);
-  pts.slice(1).forEach(p=>ctx.lineTo(p.x,p.y));
-  ctx.lineTo(pts[pts.length-1].x,pad.t+H2);ctx.lineTo(pts[0].x,pad.t+H2);ctx.closePath();
-  ctx.fillStyle=grad;ctx.fill();
-  // Line
-  ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);
-  pts.slice(1).forEach(p=>ctx.lineTo(p.x,p.y));
-  ctx.strokeStyle='#3b82f6';ctx.lineWidth=2;ctx.stroke();
-  // Labels
-  ctx.fillStyle='#475569';ctx.font='10px -apple-system';ctx.textAlign='center';
-  [0,Math.floor(data.length/2),data.length-1].forEach(i=>{
-    const d=data[i];if(!d)return;
-    const label=new Date(d.date).toLocaleDateString('it-IT',{day:'numeric',month:'short'});
-    ctx.fillText(label,pts[i].x,canvas.height-4);
-  });
-  // Last value
-  const last=pts[pts.length-1];
-  ctx.fillStyle='#3b82f6';ctx.font='bold 11px -apple-system';ctx.textAlign='right';
-  ctx.fillText('€'+fmt(data[data.length-1].value),canvas.width-pad.r,last.y-6);
 }
 
 // ── RENDER ALL ────────────────────────────────────────────────
@@ -2653,6 +2830,17 @@ function renderSettings(){
   if(tc){const n=allTags().length;tc.textContent=n?n+' tag':'Nessun tag';}
   const ak=document.getElementById('api-key-status');
   if(ak) ak.textContent=state.anthropicKey?'Configurata — scansione attiva':'Non configurata';
+  const ss=document.getElementById('sheet-status');
+  if(ss){
+    if(state.sheetUrl){
+      const t=state.sheetLastSync?new Date(state.sheetLastSync).toLocaleString('it-IT',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'mai';
+      ss.textContent='Collegato · ultima sync '+t;
+    } else ss.textContent='Nessuno';
+  }
+  const sat=document.getElementById('sheet-auto-toggle');
+  if(sat) sat.classList.toggle('on', !!state.sheetAuto);
+  const sas=document.getElementById('sheet-auto-status');
+  if(sas) sas.textContent=state.sheetAuto?'Attiva — invia a ogni modifica':'Disattivata';
   const bd=document.getElementById('budget-display');
   if(bd) bd.textContent=state.budget?'€'+fmt(state.budget)+' al mese':'Non impostato';
 
@@ -2873,7 +3061,7 @@ function parseBFFile(file){
   reader.readAsArrayBuffer(file);
 }
 
-function resetData(){if(!confirm('Sei sicuro? Azione irreversibile.'))return;state={transactions:[],investments:[],conti:[],debiti:[],trasferimenti:[],obiettivi:[],budget:null,binanceKey:null,anthropicKey:null,patrimonioStorico:[],currentMonth:new Date().getMonth(),currentYear:new Date().getFullYear(),viewMode:'mese',currentWeekOffset:0,categorie:[...DEFAULT_CATEGORIES],tags:[]};saveState();renderAll();}
+function resetData(){if(!confirm('Sei sicuro? Azione irreversibile.'))return;state={transactions:[],investments:[],conti:[],debiti:[],trasferimenti:[],obiettivi:[],budget:null,binanceKey:null,anthropicKey:null,patrimonioStorico:[],currentMonth:new Date().getMonth(),currentYear:new Date().getFullYear(),viewMode:'mese',currentWeekOffset:0,categorie:[...DEFAULT_CATEGORIES],tags:[],sheetUrl:null,sheetAuto:false,sheetLastSync:null,geminiModel:null};saveState();renderAll();}
 
 // ── PRIVACY MODE ─────────────────────────────────────────────
 let privacyOn=false;
