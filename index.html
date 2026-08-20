@@ -523,6 +523,11 @@ select.form-input{cursor:pointer}
         <span class="set-body"><span class="set-lbl" id="sheet-sync-btn">Sincronizza ora</span><span class="set-sub">Invia tutti i dati al foglio</span></span>
         <svg class="row-arrow"><use href="#i-chevron"/></svg>
       </button>
+      <button class="set-row" onclick="openSheetModal()">
+        <span class="set-icon" style="background:rgba(148,163,184,.14);color:var(--text2)"><svg><use href="#i-search"/></svg></span>
+        <span class="set-body"><span class="set-lbl">Verifica collegamento</span><span class="set-sub">Controlla URL e versione dello script</span></span>
+        <svg class="row-arrow"><use href="#i-chevron"/></svg>
+      </button>
       <button class="set-row" onclick="pullFromSheet()">
         <span class="set-icon" style="background:rgba(245,158,11,.14);color:var(--yellow)"><svg><use href="#i-arrow-in"/></svg></span>
         <span class="set-body"><span class="set-lbl">Importa dal foglio</span><span class="set-sub">Sostituisce le transazioni dell'app</span></span>
@@ -569,7 +574,7 @@ select.form-input{cursor:pointer}
 
   <div class="section" style="padding-bottom:24px">
     <div style="text-align:center;font-size:12px;color:var(--text3);line-height:1.7">
-      Patrimonio v5.6<br>
+      Patrimonio v5.7<br>
       I dati sono salvati solo su questo dispositivo
     </div>
   </div>
@@ -1862,42 +1867,63 @@ function buildSheetPayload(){
   };
 }
 
-async function sheetCall(payload){
+async function sheetCall(payload, timeoutMs){
   if(!state.sheetUrl) throw new Error('Nessun foglio collegato');
-  const r=await fetch(state.sheetUrl,{
-    method:'POST', redirect:'follow',
-    headers:{'Content-Type':'text/plain;charset=utf-8'},
-    body:JSON.stringify(payload)
-  });
+  let r;
+  try{
+    r=await fetch(state.sheetUrl,{
+      method:'POST', redirect:'follow',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body:JSON.stringify(payload),
+      signal:AbortSignal.timeout(timeoutMs||60000)
+    });
+  }catch(e){
+    if(e.name==='TimeoutError') throw new Error('Il foglio non risponde entro un minuto. Riprova.');
+    throw new Error('Connessione fallita. Controlla che l\'URL finisca con /exec e che il deploy sia accessibile a "Chiunque".');
+  }
   const txt=await r.text();
-  let d; try{ d=JSON.parse(txt); }catch(e){ throw new Error('Risposta non valida dal foglio'); }
-  if(!d.ok) throw new Error(d.error||'Errore sconosciuto');
+  if(!r.ok) throw new Error('Il server ha risposto '+r.status+'. Verifica il deploy dello script.');
+  if(/<!DOCTYPE|<html/i.test(txt)){
+    throw new Error('Il foglio ha restituito una pagina web invece dei dati: di solito significa che il deploy non è accessibile a "Chiunque".');
+  }
+  let d;
+  try{ d=JSON.parse(txt); }
+  catch(e){ throw new Error('Risposta non leggibile: '+txt.slice(0,120)); }
+  if(!d.ok) throw new Error(d.error||'Errore sconosciuto dal foglio');
+  if(d.version) state.sheetScriptVersion=d.version;
   return d;
 }
+
+const SHEET_SCRIPT_VERSION='5.6';
 
 async function syncToSheet(silent){
   if(syncing) return;
   if(!state.sheetUrl){ if(!silent) toast('Collega prima un foglio','err'); return; }
   syncing=true;
-  const btn=document.getElementById('sheet-sync-btn');
-  if(btn) btn.textContent='Sincronizzazione…';
+  const lbl=document.getElementById('sheet-sync-btn');
+  if(lbl) lbl.textContent='Sincronizzazione…';
+  const t0=Date.now();
   try{
-    const d=await sheetCall(buildSheetPayload());
+    const payload=buildSheetPayload();
+    const d=await sheetCall(payload);
     state.sheetLastSync=new Date().toISOString();
     saveState(); renderSettings();
     if(!silent){
-      const t=d.transazioni||{};
-      const parti=[];
-      if(t.added) parti.push(t.added+' aggiunte');
-      if(t.updated) parti.push(t.updated+' aggiornate');
-      if(t.removed) parti.push(t.removed+' rimosse');
-      toast(parti.length?('Transazioni: '+parti.join(' · ')):'Foglio allineato','ok');
+      if(d.version && d.version!==SHEET_SCRIPT_VERSION){
+        alert('Sincronizzato, ma lo script sul foglio è alla versione '+d.version+
+              ' mentre l\'app si aspetta la '+SHEET_SCRIPT_VERSION+'.\n\n'+
+              'Su Apps Script: Implementa → Gestisci implementazioni → matita → '+
+              'Versione: Nuova versione → Implementa.');
+      } else {
+        const n=(d.transazioni&&d.transazioni.total)||0;
+        toast(n+' transazioni · '+(d.conti||0)+' conti · '+(d.investimenti||0)+' investimenti','ok');
+      }
     }
   }catch(e){
-    if(!silent) toast('Errore: '+e.message,'err');
+    if(!silent) alert('Sincronizzazione non riuscita\n\n'+e.message);
   }
   syncing=false;
-  if(btn) btn.textContent='Sincronizza ora';
+  if(lbl) lbl.textContent='Sincronizza ora';
 }
 
 async function pullFromSheet(){
@@ -1931,27 +1957,57 @@ async function pullFromSheet(){
 async function testSheet(){
   const url=document.getElementById('sheet-url-input').value.trim();
   const el=document.getElementById('sheet-test-result');
-  if(!url){ toast('Incolla prima l\'URL','err'); return; }
+  el.style.display='block';
+  if(!url){ el.innerHTML='<span style="color:var(--red)">Incolla prima l\'URL</span>'; return; }
   if(!/^https:\/\/script\.google\.com\/.*\/exec$/.test(url)){
-    el.style.display='block';
     el.innerHTML='<span style="color:var(--red)">L\'URL deve iniziare con https://script.google.com e finire con /exec</span>';
     return;
   }
-  el.style.display='block';
   el.innerHTML='<span style="color:var(--text2)">Verifica in corso…</span>';
-  const prev=state.sheetUrl; state.sheetUrl=url;
+  const prev=state.sheetUrl;
+  state.sheetUrl=url;
+  const t0=Date.now();
   try{
-    const d=await sheetCall({action:'ping'});
-    el.innerHTML=`<span style="color:var(--green)">Collegato a: <strong>${esc(d.sheet||'foglio')}</strong></span>`;
+    const d=await sheetCall({action:'ping'},25000);
+    const ms=Date.now()-t0;
+    const verOk = d.version===SHEET_SCRIPT_VERSION;
+    let html=`<div style="color:var(--green);font-weight:700;margin-bottom:8px">Collegamento riuscito</div>
+      <div style="color:var(--text2)">Foglio: <strong style="color:var(--text)">${esc(d.sheet||'—')}</strong></div>
+      <div style="color:var(--text2)">Risposta in ${ms} ms</div>`;
+    if(d.version){
+      html+=verOk
+        ? `<div style="color:var(--green);margin-top:6px">Script versione ${esc(d.version)} — aggiornato</div>`
+        : `<div style="color:var(--red);margin-top:8px;line-height:1.6">
+             <strong>Script non aggiornato</strong><br>
+             Sul foglio c'è la versione ${esc(d.version)}, l'app richiede la ${SHEET_SCRIPT_VERSION}.<br>
+             Su Apps Script: Implementa → Gestisci implementazioni → matita →
+             Versione: <em>Nuova versione</em> → Implementa.
+           </div>`;
+    } else {
+      html+=`<div style="color:var(--red);margin-top:8px;line-height:1.6">
+        <strong>Script obsoleto</strong><br>
+        Non riporta la versione: è una copia vecchia. Reincolla apps-script.gs e
+        ripubblica scegliendo <em>Nuova versione</em>.</div>`;
+    }
+    el.innerHTML=html;
   }catch(e){
     state.sheetUrl=prev;
-    el.innerHTML=`<span style="color:var(--red)">${esc(e.message)}</span>`;
+    el.innerHTML=`<div style="color:var(--red);font-weight:700;margin-bottom:6px">Collegamento non riuscito</div>
+      <div style="color:var(--text2);line-height:1.6">${esc(e.message)}</div>
+      <div style="color:var(--text3);font-size:11px;margin-top:10px;line-height:1.7">
+        Da controllare:<br>
+        · Implementa → tipo <em>Applicazione web</em><br>
+        · Esegui come: <em>Me stesso</em><br>
+        · Accesso: <em>Chiunque</em> (non "Chiunque con l'account Google")<br>
+        · L'URL finisce con /exec, non con /dev
+      </div>`;
   }
 }
 
 function openSheetModal(){
   document.getElementById('sheet-url-input').value=state.sheetUrl||'';
-  document.getElementById('sheet-test-result').style.display='none';
+  const el=document.getElementById('sheet-test-result');
+  el.style.display='none'; el.innerHTML='';
   openModal('sheetModal');
 }
 
