@@ -569,7 +569,7 @@ select.form-input{cursor:pointer}
 
   <div class="section" style="padding-bottom:24px">
     <div style="text-align:center;font-size:12px;color:var(--text3);line-height:1.7">
-      Patrimonio v5.5<br>
+      Patrimonio v5.6<br>
       I dati sono salvati solo su questo dispositivo
     </div>
   </div>
@@ -1088,17 +1088,21 @@ function loadState(){
 
 // ── PATRIMONIO STORICO ────────────────────────────────────────
 function snapshotPatrimonio(){
-  // Registra il patrimonio del giorno: alimenta lo storico esportato nel backup
-  // e nel foglio Google. Un valore al giorno, ultimi 365.
+  // Fotografia giornaliera del patrimonio, con la ripartizione per classe.
+  // Alimenta il grafico dell'andamento nel foglio Google.
   const today=new Date().toISOString().split('T')[0];
-  const cash=state.conti.reduce((s,c)=>s+c.saldo,0);
-  const inv=state.investments.reduce((s,i)=>s+i.qty*i.current,0);
-  const val=cash+inv;
+  const liquidita=state.conti.reduce((s,c)=>s+c.saldo,0);
+  const etf=state.investments.filter(i=>i.type==='etf'||i.type==='azione').reduce((s,i)=>s+i.qty*i.current,0);
+  const crypto=state.investments.filter(i=>i.type==='crypto').reduce((s,i)=>s+i.qty*i.current,0);
+  const altro=state.investments.filter(i=>i.type==='altro').reduce((s,i)=>s+i.qty*i.current,0);
+  const value=liquidita+etf+crypto+altro;
   if(!state.patrimonioStorico) state.patrimonioStorico=[];
   const ex=state.patrimonioStorico.find(p=>p.date===today);
-  if(ex) ex.value=val; else state.patrimonioStorico.push({date:today,value:val});
-  if(state.patrimonioStorico.length>365) state.patrimonioStorico=state.patrimonioStorico.slice(-365);
+  if(ex) Object.assign(ex,{value,liquidita,etf,crypto,altro});
+  else state.patrimonioStorico.push({date:today,value,liquidita,etf,crypto,altro});
+  if(state.patrimonioStorico.length>190) state.patrimonioStorico=state.patrimonioStorico.slice(-190);
 }
+
 
 // ── NAV ───────────────────────────────────────────────────────
 function navigate(page){
@@ -1844,6 +1848,11 @@ function buildSheetPayload(){
     obiettivi: (state.obiettivi||[]).map(o=>({
       id:String(o.id), nome:((o.emoji?o.emoji+' ':'')+o.nome),
       current:o.current, target:o.target, scadenza:o.scadenza||''
+    })),
+    storico: (state.patrimonioStorico||[]).map(p=>({
+      date:p.date,
+      liquidita:p.liquidita||0, etf:p.etf||0, crypto:p.crypto||0, altro:p.altro||0,
+      totale:p.value||0
     })),
     settings: {
       budget: state.budget||0,
