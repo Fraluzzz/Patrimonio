@@ -210,6 +210,23 @@ select.form-input{cursor:pointer}
 .set-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
 .set-lbl{font-size:15px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .set-sub{font-size:12px;color:var(--text2);line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* Ripartizione scontrino */
+.split-row{display:flex;align-items:center;gap:9px;padding:9px 0;border-bottom:1px solid var(--border)}
+.split-cat{flex:1;min-width:0;display:flex;align-items:center;gap:8px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 11px;cursor:pointer;font-family:inherit;color:var(--text);text-align:left}
+.split-cat:active{border-color:var(--accent)}
+.split-emoji{font-size:17px;flex-shrink:0}
+.split-catname{flex:1;min-width:0;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.split-amount{width:98px;flex-shrink:0;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 8px;color:var(--text);font-size:16px;font-family:inherit;text-align:right;outline:none;font-variant-numeric:tabular-nums}
+.split-amount:focus{border-color:var(--accent)}
+.split-del{width:32px;height:32px;flex-shrink:0;background:none;border:none;color:var(--text3);cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:8px}
+.split-del:active{background:rgba(239,68,68,.15);color:var(--red)}
+.split-hint{font-size:11px;color:var(--text3);padding:0 0 8px 46px;margin-top:-8px}
+.split-total-bar{display:flex;justify-content:space-between;align-items:center;background:var(--bg3);border-radius:var(--radius-sm);padding:13px 15px;margin-top:12px}
+.split-total-lbl{font-size:12px;color:var(--text2);font-weight:600;letter-spacing:.4px}
+.split-total-val{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}
+.split-diff{font-size:11px;color:var(--yellow);margin-top:8px;text-align:center;line-height:1.5}
+.split-add{width:100%;background:none;border:1px dashed var(--border);border-radius:var(--radius-sm);padding:11px;color:var(--text3);font-size:13px;font-family:inherit;cursor:pointer;margin-top:12px}
+.split-add:active{border-color:var(--accent);color:var(--accent)}
 .no-data-badge{font-size:11px;color:var(--text3);background:var(--bg3);padding:2px 8px;border-radius:4px}
 /* Toast */
 #toast-host{position:fixed;left:0;right:0;bottom:calc(84px + var(--safe-bottom));z-index:500;display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none;padding:0 20px}
@@ -574,7 +591,7 @@ select.form-input{cursor:pointer}
 
   <div class="section" style="padding-bottom:24px">
     <div style="text-align:center;font-size:12px;color:var(--text3);line-height:1.7">
-      Patrimonio v5.7<br>
+      Patrimonio v5.8<br>
       I dati sono salvati solo su questo dispositivo
     </div>
   </div>
@@ -640,12 +657,61 @@ select.form-input{cursor:pointer}
   </div>
 </div>
 
+<!-- MODAL: RIPARTIZIONE SCONTRINO -->
+<div class="modal-overlay" id="splitModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Verifica la spesa</div>
+    <p style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:16px">
+      L'AI ha diviso lo scontrino per categoria. Correggi importi e categorie se serve, poi salva: verrà creata una voce per ciascuna riga.
+    </p>
+    <div class="form-group">
+      <label class="form-label">NEGOZIO</label>
+      <input type="text" class="form-input" id="split-desc" placeholder="es. Esselunga">
+    </div>
+    <div class="form-group">
+      <label class="form-label">RIPARTIZIONE</label>
+      <div id="split-rows"></div>
+      <button class="split-add" onclick="aggiungiRiga()">+ Aggiungi categoria</button>
+      <div class="split-total-bar">
+        <span class="split-total-lbl">TOTALE</span>
+        <span class="split-total-val" id="split-total">€0,00</span>
+      </div>
+      <div class="split-diff" id="split-diff" style="display:none"></div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">CONTO</label>
+      <select class="form-input" id="split-conto"><option value="">Nessun conto</option></select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">TAG <span class="no-data-badge">valgono per tutte le voci</span></label>
+      <div class="tag-picker" id="split-tag-picker"></div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">DATA</label>
+      <input type="date" class="form-input" id="split-date">
+    </div>
+    <button class="btn-primary" onclick="salvaSplit()">Salva</button>
+    <button class="btn-secondary" onclick="closeModal('splitModal')">Annulla</button>
+  </div>
+</div>
+
+<!-- MODAL: SCELTA CATEGORIA PER RIGA -->
+<div class="modal-overlay" id="splitCatModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Scegli la categoria</div>
+    <div class="cat-pills" id="split-cat-grid"></div>
+    <button class="btn-secondary" onclick="closeModal('splitCatModal')">Annulla</button>
+  </div>
+</div>
+
 <!-- MODAL: AI SCONTRINO -->
 <div class="modal-overlay" id="aiModal">
   <div class="modal">
     <div class="modal-handle"></div>
     <div class="modal-title">✨ Compila con AI</div>
-    <p style="font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.6">Scontrino, screenshot di un bonifico, notifica di pagamento, fattura&hellip; L'AI legge l'immagine e compila i campi.</p>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.6">Scontrino, fattura, screenshot di un pagamento&hellip; L'AI legge l'immagine, riconosce il totale e divide la spesa per categoria.</p>
     <div class="form-group">
       <label class="form-label">SORGENTE IMMAGINE</label>
       <div style="display:flex;gap:10px">
@@ -1445,29 +1511,29 @@ async function analyzeReceipt(){
   document.getElementById('ai-result').style.display='none';
   document.getElementById('ai-confirm-btn').style.display='none';
   try{
-    // Ottieni le categorie disponibili dinamicamente
     syncCategories();
-    const catIds=CATEGORIES.map(c=>c.id).join(', ');
+    const elenco=CATEGORIES.map(c=>c.id+' ('+c.label.replace(/^\S+\s/,'')+')').join(', ');
     const data=await callGemini([
       {inline_data:{mime_type:aiImageMime,data:aiImageBase64}},
-      {text:`Analizza questa immagine (scontrino, fattura, ricevuta, screenshot di pagamento o bonifico). Rispondi SOLO con un oggetto JSON valido, nessun testo aggiuntivo, nessun markdown. Campi richiesti:
-{"importo": <numero decimale con punto, es 24.50>, "descrizione": "<nome breve del negozio/servizio, max 30 caratteri>", "categoria": "<una esatta tra: ${catIds}>", "data": "<YYYY-MM-DD se visibile, altrimenti null>"}
-L'importo deve essere il totale finale pagato in euro. Se non riesci a determinare un campo metti null.`}
-    ], 300);
-    const text=extractGeminiText(data);
-    aiResultData=JSON.parse(text);
-    // Normalizza importo (potrebbe arrivare come stringa)
-    if(typeof aiResultData.importo==='string') aiResultData.importo=parseFloat(aiResultData.importo.replace(',','.'));
-    // Valida categoria
-    if(!CATEGORIES.find(c=>c.id===aiResultData.categoria)) aiResultData.categoria='altro';
-    const catLabel=CATEGORIES.find(c=>c.id===aiResultData.categoria)?.label||aiResultData.categoria;
-    document.getElementById('ai-result').innerHTML=`
-      <div style="margin-bottom:8px;display:flex;justify-content:space-between"><strong>Importo</strong><span class="pos" style="font-size:18px;font-weight:700">€${aiResultData.importo||'–'}</span></div>
-      <div style="margin-bottom:8px;display:flex;justify-content:space-between"><strong>Negozio</strong><span>${esc(aiResultData.descrizione||'–')}</span></div>
-      <div style="margin-bottom:8px;display:flex;justify-content:space-between"><strong>Categoria</strong><span>${esc(catLabel)}</span></div>
-      <div style="display:flex;justify-content:space-between"><strong>Data</strong><span>${aiResultData.data||'oggi'}</span></div>`;
-    document.getElementById('ai-result').style.display='block';
-    document.getElementById('ai-confirm-btn').style.display='block';
+      {text:`Analizza questo documento di spesa (scontrino, fattura, ricevuta o screenshot di pagamento).
+
+Raggruppa gli articoli per categoria e restituisci un importo per ciascun gruppo.
+Se tutti gli articoli appartengono alla stessa categoria, restituisci un solo gruppo.
+Usa al massimo 5 gruppi: accorpa le voci minori nella categoria più affine.
+
+Rispondi SOLO con un oggetto JSON valido, senza markdown e senza testo attorno:
+{"descrizione":"<nome del negozio, max 30 caratteri>",
+ "data":"<YYYY-MM-DD se visibile, altrimenti null>",
+ "totale":<totale finale pagato, numero decimale con punto>,
+ "righe":[{"categoria":"<un id esatto fra quelli elencati>","importo":<numero>,"dettaglio":"<2-4 articoli di esempio>"}]}
+
+Categorie disponibili (usa l'id, non l'etichetta): ${elenco}
+
+La somma degli importi in "righe" deve essere uguale a "totale".`}
+    ], 700);
+    const parsed=JSON.parse(extractGeminiText(data));
+    aiResultData=normalizzaScontrino(parsed);
+    mostraAnteprimaScontrino();
   }catch(err){
     document.getElementById('ai-result').innerHTML='<span style="color:var(--red)">'+esc(err.message)+'</span>';
     document.getElementById('ai-result').style.display='block';
@@ -1476,27 +1542,198 @@ L'importo deve essere il totale finale pagato in euro. Se non riesci a determina
   document.getElementById('ai-loading').style.display='none';
 }
 
+/** Ripulisce la risposta dell'AI e garantisce che i conti tornino */
+function normalizzaScontrino(p){
+  const num=v=>{
+    if(typeof v==='number') return v;
+    const n=parseFloat(String(v||'').replace(/[^\d,.-]/g,'').replace(',','.'));
+    return isNaN(n)?0:n;
+  };
+  let righe=Array.isArray(p.righe)?p.righe:[];
+  righe=righe.map(r=>({
+    cat: CATEGORIES.find(c=>c.id===r.categoria) ? r.categoria : 'altro',
+    importo: Math.round(num(r.importo)*100)/100,
+    dettaglio: String(r.dettaglio||'').slice(0,60)
+  })).filter(r=>r.importo>0).slice(0,5);
+
+  let totale=Math.round(num(p.totale)*100)/100;
+  if(!righe.length){
+    righe=[{cat:'altro',importo:totale,dettaglio:''}];
+  }
+  if(!(totale>0)) totale=righe.reduce((s,r)=>s+r.importo,0);
+
+  // Se la somma non torna, aggiusta l'ultima riga: il totale dello scontrino
+  // è il dato certo, la ripartizione è una stima dell'AI.
+  const somma=Math.round(righe.reduce((s,r)=>s+r.importo,0)*100)/100;
+  const scarto=Math.round((totale-somma)*100)/100;
+  if(Math.abs(scarto)>=0.01){
+    const ultima=righe[righe.length-1];
+    ultima.importo=Math.round((ultima.importo+scarto)*100)/100;
+    if(ultima.importo<=0){ righe.pop(); if(!righe.length) righe=[{cat:'altro',importo:totale,dettaglio:''}]; }
+  }
+  return {
+    descrizione:String(p.descrizione||'').slice(0,40)||'Scontrino',
+    data:(typeof p.data==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(p.data))?p.data:null,
+    totale, righe, scartoCorretto:Math.abs(scarto)>=0.01
+  };
+}
+
+function mostraAnteprimaScontrino(){
+  const d=aiResultData;
+  const el=document.getElementById('ai-result');
+  const nRighe=d.righe.length;
+  el.innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px">
+      <strong>${esc(d.descrizione)}</strong>
+      <span style="font-size:19px;font-weight:700">€${fmt(d.totale)}</span>
+    </div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:12px">
+      ${d.data?new Date(d.data).toLocaleDateString('it-IT',{day:'numeric',month:'long',year:'numeric'}):'data non rilevata — verrà usata oggi'}
+      · ${nRighe===1?'una sola categoria':nRighe+' categorie'}
+    </div>
+    ${d.righe.map(r=>{
+      const c=CATEGORIES.find(x=>x.id===r.cat);
+      return `<div style="display:flex;align-items:center;gap:9px;padding:7px 0;border-top:1px solid var(--border)">
+        <span style="width:26px;text-align:center">${(c?.label||'').split(' ')[0]}</span>
+        <span style="flex:1;min-width:0">
+          <span style="font-size:13px">${esc((c?.label||r.cat).replace(/^\S+\s/,''))}</span>
+          ${r.dettaglio?`<br><span style="font-size:11px;color:var(--text3)">${esc(r.dettaglio)}</span>`:''}
+        </span>
+        <span style="font-weight:700">€${fmt(r.importo)}</span>
+      </div>`;
+    }).join('')}
+    ${d.scartoCorretto?'<div style="font-size:11px;color:var(--yellow);margin-top:10px">La ripartizione è stata riallineata al totale dello scontrino.</div>':''}`;
+  el.style.display='block';
+  const btn=document.getElementById('ai-confirm-btn');
+  btn.textContent = nRighe===1 ? 'Rivedi e salva' : 'Rivedi le '+nRighe+' voci';
+  btn.style.display='block';
+}
+
+// ── EDITOR RIPARTIZIONE SCONTRINO ─────────────────────────────
+let splitData=null, rigaInModifica=null;
+
 function confirmAIResult(){
   if(!aiResultData)return;
+  splitData={
+    desc: aiResultData.descrizione,
+    date: aiResultData.data || new Date().toISOString().split('T')[0],
+    contoId: null,
+    tags: [],
+    righe: aiResultData.righe.map(r=>({cat:r.cat, importo:r.importo, dettaglio:r.dettaglio}))
+  };
   closeModal('aiModal');
-  editingTxId=null;
-  openModal('addModal');
-  setTimeout(()=>{
-    if(aiResultData.importo) document.getElementById('add-amount').value=aiResultData.importo;
-    if(aiResultData.descrizione) document.getElementById('add-desc').value=aiResultData.descrizione;
-    if(aiResultData.data) document.getElementById('add-date').value=aiResultData.data;
-    if(aiResultData.categoria){
-      const cat=CATEGORIES.find(c=>c.id===aiResultData.categoria);
-      if(cat){
-        selectedCat=cat.id;
-        // Use data-id attribute for reliable matching
-        document.querySelectorAll('#add-cat-pills .cat-pill').forEach(p=>{
-          if(p.dataset.id===cat.id){p.classList.add('selected');}
-          else p.classList.remove('selected');
-        });
-      }
-    }
-  },300);
+  setTimeout(()=>{ renderSplitEditor(); openModal('splitModal'); }, 180);
+}
+
+function renderSplitEditor(){
+  syncCategories();
+  document.getElementById('split-desc').value=splitData.desc;
+  document.getElementById('split-date').value=splitData.date;
+
+  const cSel=document.getElementById('split-conto');
+  cSel.innerHTML='<option value="">Nessun conto</option>'+
+    state.conti.map(c=>`<option value="${c.id}"${splitData.contoId===c.id?' selected':''}>${esc(c.name)} (€${fmt(c.saldo)})</option>`).join('');
+
+  const rows=document.getElementById('split-rows');
+  rows.innerHTML=splitData.righe.map((r,i)=>{
+    const c=CATEGORIES.find(x=>x.id===r.cat);
+    return `<div class="split-row">
+      <button class="split-cat" onclick="cambiaCategoriaRiga(${i})">
+        <span class="split-emoji">${(c?.label||'💼').split(' ')[0]}</span>
+        <span class="split-catname">${esc((c?.label||r.cat).replace(/^\S+\s/,''))}</span>
+        <svg class="ico-sm" style="opacity:.5;flex-shrink:0"><use href="#i-chevron"/></svg>
+      </button>
+      <input type="number" class="split-amount" value="${r.importo}" step="0.01" inputmode="decimal"
+             oninput="aggiornaImportoRiga(${i},this.value)">
+      ${splitData.righe.length>1?`<button class="split-del" onclick="rimuoviRiga(${i})" aria-label="Rimuovi"><svg class="ico-sm"><use href="#i-close"/></svg></button>`:'<span style="width:32px;flex-shrink:0"></span>'}
+    </div>${r.dettaglio?`<div class="split-hint">${esc(r.dettaglio)}</div>`:''}`;
+  }).join('');
+
+  aggiornaTotaleSplit();
+
+  const tagWrap=document.getElementById('split-tag-picker');
+  const tags=allTags();
+  tagWrap.innerHTML=`<button class="tag-chip${!splitData.tags.length?' selected':''}" onclick="splitClearTags()">Nessuno</button>`
+    + tags.map(t=>{
+        const on=splitData.tags.includes(t);
+        return `<button class="tag-chip${on?' selected':''}" onclick="splitToggleTag('${esc(t).replace(/'/g,"\\'")}')">${on?'✓':'🔖'} ${esc(t)}</button>`;
+      }).join('');
+}
+
+function aggiornaTotaleSplit(){
+  const somma=splitData.righe.reduce((s,r)=>s+(Number(r.importo)||0),0);
+  document.getElementById('split-total').textContent='€'+fmt(somma);
+  const orig=aiResultData?aiResultData.totale:somma;
+  const diff=Math.round((somma-orig)*100)/100;
+  const nota=document.getElementById('split-diff');
+  if(Math.abs(diff)>=0.01){
+    nota.style.display='block';
+    nota.innerHTML=`Lo scontrino riportava €${fmt(orig)} · differenza di €${fmt(Math.abs(diff))}`;
+  } else nota.style.display='none';
+}
+
+function aggiornaImportoRiga(i,v){
+  splitData.righe[i].importo=Math.round((parseFloat(v)||0)*100)/100;
+  aggiornaTotaleSplit();
+}
+
+function rimuoviRiga(i){ splitData.righe.splice(i,1); renderSplitEditor(); }
+
+function aggiungiRiga(){
+  if(splitData.righe.length>=5){ toast('Massimo 5 categorie per scontrino','err'); return; }
+  splitData.righe.push({cat:'altro', importo:0, dettaglio:''});
+  renderSplitEditor();
+}
+
+function cambiaCategoriaRiga(i){
+  rigaInModifica=i;
+  document.getElementById('split-cat-grid').innerHTML=CATEGORIES.map(c=>
+    `<button class="cat-pill${splitData.righe[i].cat===c.id?' selected':''}" onclick="scegliCategoriaRiga('${c.id}')">${c.label}</button>`
+  ).join('');
+  openModal('splitCatModal');
+}
+
+function scegliCategoriaRiga(id){
+  if(rigaInModifica!==null) splitData.righe[rigaInModifica].cat=id;
+  rigaInModifica=null;
+  closeModal('splitCatModal');
+  renderSplitEditor();
+}
+
+function splitToggleTag(t){
+  const i=splitData.tags.indexOf(t);
+  if(i>=0) splitData.tags.splice(i,1); else splitData.tags.push(t);
+  renderSplitEditor();
+}
+function splitClearTags(){ splitData.tags=[]; renderSplitEditor(); }
+
+function salvaSplit(){
+  const desc=document.getElementById('split-desc').value.trim();
+  const date=document.getElementById('split-date').value;
+  const contoId=parseInt(document.getElementById('split-conto').value)||null;
+  if(!desc) return toast('Inserisci una descrizione','err');
+  const valide=splitData.righe.filter(r=>Number(r.importo)>0);
+  if(!valide.length) return toast('Inserisci almeno un importo','err');
+
+  const conto=contoId?state.conti.find(c=>c.id===contoId):null;
+  valide.forEach((r,k)=>{
+    state.transactions.push({
+      id: Date.now()+k+Math.random(),
+      amount: Number(r.importo),
+      desc, cat: r.cat, type:'uscita',
+      date: date||new Date().toISOString().split('T')[0],
+      contoId,
+      tag: splitData.tags.length?[...splitData.tags]:null
+    });
+    if(conto) conto.saldo-=Number(r.importo);
+  });
+
+  const somma=valide.reduce((s,r)=>s+Number(r.importo),0);
+  snapshotPatrimonio(); saveState(); closeModal('splitModal'); renderAll(); scheduleSync();
+  toast(valide.length===1
+    ? `Spesa di €${fmt(somma)} registrata`
+    : `${valide.length} voci · €${fmt(somma)}`,'ok');
+  splitData=null;
 }
 
 function saveApiKey(){
