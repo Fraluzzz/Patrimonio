@@ -214,19 +214,28 @@ select.form-input{cursor:pointer}
 .split-row{display:flex;align-items:center;gap:9px;padding:9px 0;border-bottom:1px solid var(--border)}
 .split-cat{flex:1;min-width:0;display:flex;align-items:center;gap:8px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 11px;cursor:pointer;font-family:inherit;color:var(--text);text-align:left}
 .split-cat:active{border-color:var(--accent)}
+.split-cat.vuota{border-color:rgba(245,158,11,.5);background:rgba(245,158,11,.08)}
+.split-cat.vuota .split-catname{color:var(--yellow)}
 .split-emoji{font-size:17px;flex-shrink:0}
 .split-catname{flex:1;min-width:0;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.split-amount{width:98px;flex-shrink:0;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 8px;color:var(--text);font-size:16px;font-family:inherit;text-align:right;outline:none;font-variant-numeric:tabular-nums}
+.split-amount{width:100px;flex-shrink:0;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 8px;color:var(--text);font-size:16px;font-family:inherit;text-align:right;outline:none;font-variant-numeric:tabular-nums}
 .split-amount:focus{border-color:var(--accent)}
 .split-del{width:32px;height:32px;flex-shrink:0;background:none;border:none;color:var(--text3);cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:8px}
 .split-del:active{background:rgba(239,68,68,.15);color:var(--red)}
 .split-hint{font-size:11px;color:var(--text3);padding:0 0 8px 46px;margin-top:-8px}
-.split-total-bar{display:flex;justify-content:space-between;align-items:center;background:var(--bg3);border-radius:var(--radius-sm);padding:13px 15px;margin-top:12px}
-.split-total-lbl{font-size:12px;color:var(--text2);font-weight:600;letter-spacing:.4px}
+.split-total-bar{display:flex;justify-content:space-between;align-items:center;border-radius:var(--radius-sm);padding:13px 15px;margin-top:12px;border:1px solid var(--border);background:var(--bg3);transition:border-color .2s,background .2s}
+.split-total-bar.ok{border-color:rgba(16,185,129,.45);background:rgba(16,185,129,.10)}
+.split-total-bar.ko{border-color:rgba(245,158,11,.45);background:rgba(245,158,11,.10)}
+.split-total-lbl{font-size:11px;color:var(--text2);font-weight:600;letter-spacing:.5px}
 .split-total-val{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}
-.split-diff{font-size:11px;color:var(--yellow);margin-top:8px;text-align:center;line-height:1.5}
+.split-check{font-size:12px;line-height:1.6;margin-top:10px;padding:11px 13px;border-radius:var(--radius-sm)}
+.split-check.ok{background:rgba(16,185,129,.10);border:1px solid rgba(16,185,129,.35);color:var(--green)}
+.split-check.ko{background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.35);color:var(--text)}
+.split-fix{display:block;width:100%;margin-top:10px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:9px;color:var(--accent);font-size:12px;font-weight:600;font-family:inherit;cursor:pointer}
+.split-fix:active{background:rgba(59,130,246,.15)}
 .split-add{width:100%;background:none;border:1px dashed var(--border);border-radius:var(--radius-sm);padding:11px;color:var(--text3);font-size:13px;font-family:inherit;cursor:pointer;margin-top:12px}
 .split-add:active{border-color:var(--accent);color:var(--accent)}
+#split-save-btn:disabled{cursor:not-allowed}
 .no-data-badge{font-size:11px;color:var(--text3);background:var(--bg3);padding:2px 8px;border-radius:4px}
 /* Toast */
 #toast-host{position:fixed;left:0;right:0;bottom:calc(84px + var(--safe-bottom));z-index:500;display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none;padding:0 20px}
@@ -591,7 +600,7 @@ select.form-input{cursor:pointer}
 
   <div class="section" style="padding-bottom:24px">
     <div style="text-align:center;font-size:12px;color:var(--text3);line-height:1.7">
-      Patrimonio v5.8<br>
+      Patrimonio v5.9<br>
       I dati sono salvati solo su questo dispositivo
     </div>
   </div>
@@ -663,21 +672,27 @@ select.form-input{cursor:pointer}
     <div class="modal-handle"></div>
     <div class="modal-title">Verifica la spesa</div>
     <p style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:16px">
-      L'AI ha diviso lo scontrino per categoria. Correggi importi e categorie se serve, poi salva: verrà creata una voce per ciascuna riga.
+      La somma delle categorie deve corrispondere al totale dello scontrino. Correggi finché i conti non tornano.
     </p>
     <div class="form-group">
       <label class="form-label">NEGOZIO</label>
       <input type="text" class="form-input" id="split-desc" placeholder="es. Esselunga">
     </div>
     <div class="form-group">
-      <label class="form-label">RIPARTIZIONE</label>
+      <label class="form-label">TOTALE DELLO SCONTRINO (€)</label>
+      <input type="number" class="form-input" id="split-totale" step="0.01" inputmode="decimal"
+             oninput="aggiornaTotaleScontrino(this.value)">
+      <div style="font-size:11px;color:var(--text3);margin-top:6px">Modificalo solo se l'AI ha letto male il totale.</div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">RIPARTIZIONE PER CATEGORIA</label>
       <div id="split-rows"></div>
       <button class="split-add" onclick="aggiungiRiga()">+ Aggiungi categoria</button>
-      <div class="split-total-bar">
-        <span class="split-total-lbl">TOTALE</span>
-        <span class="split-total-val" id="split-total">€0,00</span>
+      <div class="split-total-bar" id="split-total-bar">
+        <span class="split-total-lbl">SOMMA CATEGORIE</span>
+        <span class="split-total-val" id="split-somma">€0,00</span>
       </div>
-      <div class="split-diff" id="split-diff" style="display:none"></div>
+      <div class="split-check" id="split-check"></div>
     </div>
     <div class="form-group">
       <label class="form-label">CONTO</label>
@@ -691,7 +706,7 @@ select.form-input{cursor:pointer}
       <label class="form-label">DATA</label>
       <input type="date" class="form-input" id="split-date">
     </div>
-    <button class="btn-primary" onclick="salvaSplit()">Salva</button>
+    <button class="btn-primary" id="split-save-btn" onclick="salvaSplit()">Salva</button>
     <button class="btn-secondary" onclick="closeModal('splitModal')">Annulla</button>
   </div>
 </div>
@@ -1542,81 +1557,107 @@ La somma degli importi in "righe" deve essere uguale a "totale".`}
   document.getElementById('ai-loading').style.display='none';
 }
 
-/** Ripulisce la risposta dell'AI e garantisce che i conti tornino */
+/**
+ * Ripulisce la risposta dell'AI senza alterare gli importi.
+ * Se la ripartizione non somma al totale dello scontrino, la
+ * discrepanza viene segnalata: non viene MAI corretta d'ufficio,
+ * perché assegnare la differenza a una categoria a caso
+ * produrrebbe una spesa che non è mai avvenuta.
+ */
 function normalizzaScontrino(p){
   const num=v=>{
     if(typeof v==='number') return v;
     const n=parseFloat(String(v||'').replace(/[^\d,.-]/g,'').replace(',','.'));
     return isNaN(n)?0:n;
   };
-  let righe=Array.isArray(p.righe)?p.righe:[];
-  righe=righe.map(r=>({
-    cat: CATEGORIES.find(c=>c.id===r.categoria) ? r.categoria : 'altro',
-    importo: Math.round(num(r.importo)*100)/100,
-    dettaglio: String(r.dettaglio||'').slice(0,60)
-  })).filter(r=>r.importo>0).slice(0,5);
+  const cent=v=>Math.round(num(v)*100);
 
-  let totale=Math.round(num(p.totale)*100)/100;
+  let righe=(Array.isArray(p.righe)?p.righe:[])
+    .map(r=>({
+      cat: CATEGORIES.find(c=>c.id===r.categoria) ? r.categoria : 'altro',
+      importo: Math.round(num(r.importo)*100)/100,
+      dettaglio: String(r.dettaglio||'').slice(0,60)
+    }))
+    .filter(r=>r.importo>0)
+    .slice(0,5);
+
+  const sommaC = righe.reduce((s,r)=>s+cent(r.importo),0);
+  let totaleC = cent(p.totale);
+
+  // Se l'AI non ha letto il totale, lo assumo dalla somma: in quel caso
+  // non c'è nulla da confrontare.
+  if(totaleC<=0) totaleC = sommaC;
+
+  // Nessuna riga riconosciuta: una sola voce da assegnare a mano.
   if(!righe.length){
-    righe=[{cat:'altro',importo:totale,dettaglio:''}];
+    righe=[{cat:null, importo:totaleC/100, dettaglio:'da assegnare'}];
   }
-  if(!(totale>0)) totale=righe.reduce((s,r)=>s+r.importo,0);
 
-  // Se la somma non torna, aggiusta l'ultima riga: il totale dello scontrino
-  // è il dato certo, la ripartizione è una stima dell'AI.
-  const somma=Math.round(righe.reduce((s,r)=>s+r.importo,0)*100)/100;
-  const scarto=Math.round((totale-somma)*100)/100;
-  if(Math.abs(scarto)>=0.01){
-    const ultima=righe[righe.length-1];
-    ultima.importo=Math.round((ultima.importo+scarto)*100)/100;
-    if(ultima.importo<=0){ righe.pop(); if(!righe.length) righe=[{cat:'altro',importo:totale,dettaglio:''}]; }
-  }
   return {
-    descrizione:String(p.descrizione||'').slice(0,40)||'Scontrino',
-    data:(typeof p.data==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(p.data))?p.data:null,
-    totale, righe, scartoCorretto:Math.abs(scarto)>=0.01
+    descrizione: String(p.descrizione||'').slice(0,40)||'Scontrino',
+    data: (typeof p.data==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(p.data))?p.data:null,
+    totale: totaleC/100,
+    righe,
+    quadra: sommaC===totaleC && righe.every(r=>r.cat)
   };
 }
 
 function mostraAnteprimaScontrino(){
   const d=aiResultData;
   const el=document.getElementById('ai-result');
-  const nRighe=d.righe.length;
+  const somma=d.righe.reduce((s,r)=>s+r.importo,0);
+  const diff=Math.round((d.totale-somma)*100)/100;
+  const nonAssegnate=d.righe.some(r=>!r.cat);
+
   el.innerHTML=`
     <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px">
       <strong>${esc(d.descrizione)}</strong>
       <span style="font-size:19px;font-weight:700">€${fmt(d.totale)}</span>
     </div>
     <div style="font-size:12px;color:var(--text3);margin-bottom:12px">
-      ${d.data?new Date(d.data).toLocaleDateString('it-IT',{day:'numeric',month:'long',year:'numeric'}):'data non rilevata — verrà usata oggi'}
-      · ${nRighe===1?'una sola categoria':nRighe+' categorie'}
+      ${d.data?new Date(d.data).toLocaleDateString('it-IT',{day:'numeric',month:'long',year:'numeric'}):'data non rilevata — userò oggi'}
+      · ${d.righe.length===1?'una categoria':d.righe.length+' categorie'}
     </div>
     ${d.righe.map(r=>{
-      const c=CATEGORIES.find(x=>x.id===r.cat);
+      const c=r.cat?CATEGORIES.find(x=>x.id===r.cat):null;
       return `<div style="display:flex;align-items:center;gap:9px;padding:7px 0;border-top:1px solid var(--border)">
-        <span style="width:26px;text-align:center">${(c?.label||'').split(' ')[0]}</span>
+        <span style="width:26px;text-align:center">${c?(c.label||'').split(' ')[0]:'❓'}</span>
         <span style="flex:1;min-width:0">
-          <span style="font-size:13px">${esc((c?.label||r.cat).replace(/^\S+\s/,''))}</span>
+          <span style="font-size:13px${c?'':';color:var(--yellow)'}">${c?esc(c.label.replace(/^\S+\s/,'')):'da assegnare'}</span>
           ${r.dettaglio?`<br><span style="font-size:11px;color:var(--text3)">${esc(r.dettaglio)}</span>`:''}
         </span>
         <span style="font-weight:700">€${fmt(r.importo)}</span>
       </div>`;
     }).join('')}
-    ${d.scartoCorretto?'<div style="font-size:11px;color:var(--yellow);margin-top:10px">La ripartizione è stata riallineata al totale dello scontrino.</div>':''}`;
+    ${Math.abs(diff)>=0.01?`
+      <div style="margin-top:12px;padding:11px;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.35);border-radius:var(--radius-sm);font-size:12px;line-height:1.6;color:var(--text)">
+        <strong>Mancano €${fmt(Math.abs(diff))}</strong><br>
+        Le categorie sommano a €${fmt(somma)} ma lo scontrino dice €${fmt(d.totale)}.
+        Al passo successivo decidi tu dove attribuirli: l'app non lo fa al posto tuo.
+      </div>`:''}
+    ${nonAssegnate?`
+      <div style="margin-top:12px;padding:11px;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.35);border-radius:var(--radius-sm);font-size:12px;line-height:1.6">
+        Non sono riuscito a riconoscere le categorie: le assegni tu al passo successivo.
+      </div>`:''}`;
   el.style.display='block';
   const btn=document.getElementById('ai-confirm-btn');
-  btn.textContent = nRighe===1 ? 'Rivedi e salva' : 'Rivedi le '+nRighe+' voci';
+  btn.textContent = (Math.abs(diff)>=0.01||nonAssegnate) ? 'Sistema e salva' : 'Rivedi e salva';
   btn.style.display='block';
 }
 
 // ── EDITOR RIPARTIZIONE SCONTRINO ─────────────────────────────
+// Regola: la somma delle categorie deve corrispondere al centesimo
+// al totale dello scontrino. Finché non corrisponde, non si salva.
 let splitData=null, rigaInModifica=null;
+
+const cent=v=>Math.round((Number(v)||0)*100);
 
 function confirmAIResult(){
   if(!aiResultData)return;
   splitData={
     desc: aiResultData.descrizione,
     date: aiResultData.data || new Date().toISOString().split('T')[0],
+    totale: aiResultData.totale,
     contoId: null,
     tags: [],
     righe: aiResultData.righe.map(r=>({cat:r.cat, importo:r.importo, dettaglio:r.dettaglio}))
@@ -1629,18 +1670,18 @@ function renderSplitEditor(){
   syncCategories();
   document.getElementById('split-desc').value=splitData.desc;
   document.getElementById('split-date').value=splitData.date;
+  document.getElementById('split-totale').value=splitData.totale;
 
   const cSel=document.getElementById('split-conto');
   cSel.innerHTML='<option value="">Nessun conto</option>'+
     state.conti.map(c=>`<option value="${c.id}"${splitData.contoId===c.id?' selected':''}>${esc(c.name)} (€${fmt(c.saldo)})</option>`).join('');
 
-  const rows=document.getElementById('split-rows');
-  rows.innerHTML=splitData.righe.map((r,i)=>{
-    const c=CATEGORIES.find(x=>x.id===r.cat);
+  document.getElementById('split-rows').innerHTML=splitData.righe.map((r,i)=>{
+    const c=r.cat?CATEGORIES.find(x=>x.id===r.cat):null;
     return `<div class="split-row">
-      <button class="split-cat" onclick="cambiaCategoriaRiga(${i})">
-        <span class="split-emoji">${(c?.label||'💼').split(' ')[0]}</span>
-        <span class="split-catname">${esc((c?.label||r.cat).replace(/^\S+\s/,''))}</span>
+      <button class="split-cat${c?'':' vuota'}" onclick="cambiaCategoriaRiga(${i})">
+        <span class="split-emoji">${c?(c.label||'').split(' ')[0]:'❓'}</span>
+        <span class="split-catname">${c?esc(c.label.replace(/^\S+\s/,'')):'Scegli categoria'}</span>
         <svg class="ico-sm" style="opacity:.5;flex-shrink:0"><use href="#i-chevron"/></svg>
       </button>
       <input type="number" class="split-amount" value="${r.importo}" step="0.01" inputmode="decimal"
@@ -1649,8 +1690,6 @@ function renderSplitEditor(){
     </div>${r.dettaglio?`<div class="split-hint">${esc(r.dettaglio)}</div>`:''}`;
   }).join('');
 
-  aggiornaTotaleSplit();
-
   const tagWrap=document.getElementById('split-tag-picker');
   const tags=allTags();
   tagWrap.innerHTML=`<button class="tag-chip${!splitData.tags.length?' selected':''}" onclick="splitClearTags()">Nessuno</button>`
@@ -1658,30 +1697,74 @@ function renderSplitEditor(){
         const on=splitData.tags.includes(t);
         return `<button class="tag-chip${on?' selected':''}" onclick="splitToggleTag('${esc(t).replace(/'/g,"\\'")}')">${on?'✓':'🔖'} ${esc(t)}</button>`;
       }).join('');
+
+  verificaQuadratura();
 }
 
-function aggiornaTotaleSplit(){
-  const somma=splitData.righe.reduce((s,r)=>s+(Number(r.importo)||0),0);
-  document.getElementById('split-total').textContent='€'+fmt(somma);
-  const orig=aiResultData?aiResultData.totale:somma;
-  const diff=Math.round((somma-orig)*100)/100;
-  const nota=document.getElementById('split-diff');
-  if(Math.abs(diff)>=0.01){
-    nota.style.display='block';
-    nota.innerHTML=`Lo scontrino riportava €${fmt(orig)} · differenza di €${fmt(Math.abs(diff))}`;
-  } else nota.style.display='none';
+/** Confronta la somma delle righe col totale dello scontrino, al centesimo */
+function verificaQuadratura(){
+  const sommaC=splitData.righe.reduce((s,r)=>s+cent(r.importo),0);
+  const totC=cent(splitData.totale);
+  const diffC=totC-sommaC;
+  const senzaCat=splitData.righe.filter(r=>!r.cat&&cent(r.importo)>0).length;
+
+  document.getElementById('split-somma').textContent='€'+fmt(sommaC/100);
+  const bar=document.getElementById('split-total-bar');
+  const box=document.getElementById('split-check');
+  const btn=document.getElementById('split-save-btn');
+
+  const quadra = diffC===0 && senzaCat===0 && sommaC>0;
+  bar.classList.toggle('ok',quadra);
+  bar.classList.toggle('ko',!quadra);
+
+  if(sommaC===0){
+    box.className='split-check ko';
+    box.innerHTML='Inserisci almeno un importo.';
+  } else if(diffC!==0){
+    const mancano=diffC>0;
+    box.className='split-check ko';
+    box.innerHTML=`<strong>${mancano?'Mancano':'Eccedono'} €${fmt(Math.abs(diffC)/100)}</strong><br>
+      La somma delle categorie è €${fmt(sommaC/100)}, lo scontrino dice €${fmt(totC/100)}.
+      ${mancano?`<button class="split-fix" onclick="assegnaDifferenza()">Assegna €${fmt(diffC/100)} a una categoria</button>`
+               :'Correggi gli importi, oppure aggiorna il totale dello scontrino qui sopra se l\'AI l\'ha letto male.'}`;
+  } else if(senzaCat){
+    box.className='split-check ko';
+    box.innerHTML=`Assegna una categoria a ${senzaCat===1?'una riga':'tutte le righe'} prima di salvare.`;
+  } else {
+    box.className='split-check ok';
+    box.innerHTML='I conti tornano: la somma corrisponde al totale dello scontrino.';
+  }
+
+  btn.disabled=!quadra;
+  btn.style.opacity=quadra?'1':'.45';
 }
 
 function aggiornaImportoRiga(i,v){
   splitData.righe[i].importo=Math.round((parseFloat(v)||0)*100)/100;
-  aggiornaTotaleSplit();
+  verificaQuadratura();
+}
+
+function aggiornaTotaleScontrino(v){
+  splitData.totale=Math.round((parseFloat(v)||0)*100)/100;
+  verificaQuadratura();
+}
+
+/** Crea una riga con esattamente la differenza mancante, categoria da scegliere */
+function assegnaDifferenza(){
+  const sommaC=splitData.righe.reduce((s,r)=>s+cent(r.importo),0);
+  const diffC=cent(splitData.totale)-sommaC;
+  if(diffC<=0) return;
+  if(splitData.righe.length>=5){ toast('Massimo 5 categorie: correggi gli importi esistenti','err'); return; }
+  splitData.righe.push({cat:null, importo:diffC/100, dettaglio:'differenza non attribuita'});
+  renderSplitEditor();
+  setTimeout(()=>cambiaCategoriaRiga(splitData.righe.length-1),200);
 }
 
 function rimuoviRiga(i){ splitData.righe.splice(i,1); renderSplitEditor(); }
 
 function aggiungiRiga(){
   if(splitData.righe.length>=5){ toast('Massimo 5 categorie per scontrino','err'); return; }
-  splitData.righe.push({cat:'altro', importo:0, dettaglio:''});
+  splitData.righe.push({cat:null, importo:0, dettaglio:''});
   renderSplitEditor();
 }
 
@@ -1712,11 +1795,19 @@ function salvaSplit(){
   const date=document.getElementById('split-date').value;
   const contoId=parseInt(document.getElementById('split-conto').value)||null;
   if(!desc) return toast('Inserisci una descrizione','err');
-  const valide=splitData.righe.filter(r=>Number(r.importo)>0);
-  if(!valide.length) return toast('Inserisci almeno un importo','err');
+
+  const righe=splitData.righe.filter(r=>cent(r.importo)>0);
+  if(!righe.length) return toast('Inserisci almeno un importo','err');
+  if(righe.some(r=>!r.cat)) return toast('Assegna una categoria a ogni riga','err');
+
+  // Ultimo controllo prima di scrivere: i conti devono tornare al centesimo
+  const sommaC=righe.reduce((s,r)=>s+cent(r.importo),0);
+  if(sommaC!==cent(splitData.totale)){
+    return toast('La somma non corrisponde al totale dello scontrino','err');
+  }
 
   const conto=contoId?state.conti.find(c=>c.id===contoId):null;
-  valide.forEach((r,k)=>{
+  righe.forEach((r,k)=>{
     state.transactions.push({
       id: Date.now()+k+Math.random(),
       amount: Number(r.importo),
@@ -1728,11 +1819,10 @@ function salvaSplit(){
     if(conto) conto.saldo-=Number(r.importo);
   });
 
-  const somma=valide.reduce((s,r)=>s+Number(r.importo),0);
   snapshotPatrimonio(); saveState(); closeModal('splitModal'); renderAll(); scheduleSync();
-  toast(valide.length===1
-    ? `Spesa di €${fmt(somma)} registrata`
-    : `${valide.length} voci · €${fmt(somma)}`,'ok');
+  toast(righe.length===1
+    ? `Spesa di €${fmt(sommaC/100)} registrata`
+    : `${righe.length} voci · €${fmt(sommaC/100)}`,'ok');
   splitData=null;
 }
 
