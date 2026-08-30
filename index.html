@@ -210,31 +210,53 @@ select.form-input{cursor:pointer}
 .set-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
 .set-lbl{font-size:15px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .set-sub{font-size:12px;color:var(--text2);line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-/* Ripartizione scontrino */
-.split-row{display:flex;align-items:center;gap:9px;padding:9px 0;border-bottom:1px solid var(--border)}
-.split-cat{flex:1;min-width:0;display:flex;align-items:center;gap:8px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 11px;cursor:pointer;font-family:inherit;color:var(--text);text-align:left}
-.split-cat:active{border-color:var(--accent)}
-.split-cat.vuota{border-color:rgba(245,158,11,.5);background:rgba(245,158,11,.08)}
-.split-cat.vuota .split-catname{color:var(--yellow)}
-.split-emoji{font-size:17px;flex-shrink:0}
-.split-catname{flex:1;min-width:0;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.split-amount{width:100px;flex-shrink:0;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 8px;color:var(--text);font-size:16px;font-family:inherit;text-align:right;outline:none;font-variant-numeric:tabular-nums}
-.split-amount:focus{border-color:var(--accent)}
-.split-del{width:32px;height:32px;flex-shrink:0;background:none;border:none;color:var(--text3);cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:8px}
-.split-del:active{background:rgba(239,68,68,.15);color:var(--red)}
-.split-hint{font-size:11px;color:var(--text3);padding:0 0 8px 46px;margin-top:-8px}
-.split-total-bar{display:flex;justify-content:space-between;align-items:center;border-radius:var(--radius-sm);padding:13px 15px;margin-top:12px;border:1px solid var(--border);background:var(--bg3);transition:border-color .2s,background .2s}
+/* ── Verifica scontrino ── */
+.split-head{display:flex;align-items:flex-start;gap:14px;padding-bottom:16px;margin-bottom:4px;border-bottom:1px solid var(--border)}
+.split-store{flex:1;min-width:0;background:none;border:none;color:var(--text);font-size:19px;font-weight:700;font-family:inherit;outline:none;padding:2px 0;letter-spacing:-.3px}
+.split-store:focus{border-bottom:1px solid var(--accent)}
+.split-head-tot{text-align:right;flex-shrink:0}
+.split-tot-input{width:108px;background:none;border:none;color:var(--text);font-size:24px;font-weight:700;font-family:inherit;text-align:right;outline:none;font-variant-numeric:tabular-nums;letter-spacing:-.5px;padding:0}
+.split-tot-input:focus{border-bottom:1px solid var(--accent)}
+.split-tot-lbl{display:block;font-size:10px;color:var(--text3);letter-spacing:.4px;margin-top:2px}
+.split-sec{margin-top:20px}
+.split-sec-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+.split-sec-title{font-size:11px;font-weight:600;letter-spacing:1px;color:var(--text3)}
+.split-sec-note{font-size:11px;color:var(--text3)}
+/* Articolo */
+.art-row{display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--border)}
+.art-row:last-of-type{border-bottom:none}
+.art-todo .art-cat{color:var(--yellow)}
+.art-tap{flex:1;min-width:0;display:flex;align-items:center;gap:11px;background:none;border:none;padding:2px 0;cursor:pointer;font-family:inherit;text-align:left;color:var(--text)}
+.art-tap:active{opacity:.6}
+.art-mark{width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
+.art-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.art-name{font-size:14px;font-weight:600;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.art-cat{font-size:12px;color:var(--text2);display:flex;align-items:center;gap:3px}
+.art-chev{width:11px;height:11px;opacity:.5;flex-shrink:0}
+.art-amount{width:82px;flex-shrink:0;background:var(--bg3);border:1px solid var(--border);border-radius:9px;padding:9px 8px;color:var(--text);font-size:15px;font-family:inherit;text-align:right;outline:none;font-variant-numeric:tabular-nums}
+.art-amount:focus{border-color:var(--accent)}
+.art-del{width:28px;height:28px;flex-shrink:0;background:none;border:none;color:var(--text3);cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:7px;opacity:.5}
+.art-del:active{background:rgba(239,68,68,.15);color:var(--red);opacity:1}
+.split-add{width:100%;background:none;border:1px dashed var(--border);border-radius:var(--radius-sm);padding:11px;color:var(--text3);font-size:13px;font-family:inherit;cursor:pointer;margin-top:10px}
+.split-add:active{border-color:var(--accent);color:var(--accent)}
+/* Riepilogo categorie */
+.grp-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)}
+.grp-row:last-child{border-bottom:none}
+.grp-emoji{width:22px;text-align:center;font-size:15px;flex-shrink:0}
+.grp-name{flex:1;min-width:0;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.grp-pct{font-size:11px;color:var(--text3);flex-shrink:0;font-variant-numeric:tabular-nums}
+.grp-val{font-size:15px;font-weight:700;flex-shrink:0;font-variant-numeric:tabular-nums}
+.grp-empty{font-size:12px;color:var(--text3);padding:12px 0;text-align:center}
+.split-total-bar{display:flex;justify-content:space-between;align-items:center;border-radius:var(--radius-sm);padding:12px 14px;margin-top:10px;border:1px solid var(--border);background:var(--bg3);transition:border-color .2s,background .2s}
 .split-total-bar.ok{border-color:rgba(16,185,129,.45);background:rgba(16,185,129,.10)}
 .split-total-bar.ko{border-color:rgba(245,158,11,.45);background:rgba(245,158,11,.10)}
-.split-total-lbl{font-size:11px;color:var(--text2);font-weight:600;letter-spacing:.5px}
-.split-total-val{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}
-.split-check{font-size:12px;line-height:1.6;margin-top:10px;padding:11px 13px;border-radius:var(--radius-sm)}
-.split-check.ok{background:rgba(16,185,129,.10);border:1px solid rgba(16,185,129,.35);color:var(--green)}
-.split-check.ko{background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.35);color:var(--text)}
+.split-total-lbl{font-size:10px;color:var(--text2);font-weight:600;letter-spacing:.6px}
+.split-total-val{font-size:19px;font-weight:700;font-variant-numeric:tabular-nums}
+.split-check{font-size:12px;line-height:1.6;margin-top:9px;padding:11px 13px;border-radius:var(--radius-sm)}
+.split-check.ok{background:rgba(16,185,129,.10);border:1px solid rgba(16,185,129,.3);color:var(--green)}
+.split-check.ko{background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.3);color:var(--text)}
 .split-fix{display:block;width:100%;margin-top:10px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:9px;color:var(--accent);font-size:12px;font-weight:600;font-family:inherit;cursor:pointer}
 .split-fix:active{background:rgba(59,130,246,.15)}
-.split-add{width:100%;background:none;border:1px dashed var(--border);border-radius:var(--radius-sm);padding:11px;color:var(--text3);font-size:13px;font-family:inherit;cursor:pointer;margin-top:12px}
-.split-add:active{border-color:var(--accent);color:var(--accent)}
 #split-save-btn:disabled{cursor:not-allowed}
 .no-data-badge{font-size:11px;color:var(--text3);background:var(--bg3);padding:2px 8px;border-radius:4px}
 /* Toast */
@@ -600,7 +622,7 @@ select.form-input{cursor:pointer}
 
   <div class="section" style="padding-bottom:24px">
     <div style="text-align:center;font-size:12px;color:var(--text3);line-height:1.7">
-      Patrimonio v5.9<br>
+      Patrimonio v6.0<br>
       I dati sono salvati solo su questo dispositivo
     </div>
   </div>
@@ -666,56 +688,66 @@ select.form-input{cursor:pointer}
   </div>
 </div>
 
-<!-- MODAL: RIPARTIZIONE SCONTRINO -->
+<!-- MODAL: VERIFICA SCONTRINO -->
 <div class="modal-overlay" id="splitModal">
   <div class="modal">
     <div class="modal-handle"></div>
-    <div class="modal-title">Verifica la spesa</div>
-    <p style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:16px">
-      La somma delle categorie deve corrispondere al totale dello scontrino. Correggi finché i conti non tornano.
-    </p>
-    <div class="form-group">
-      <label class="form-label">NEGOZIO</label>
-      <input type="text" class="form-input" id="split-desc" placeholder="es. Esselunga">
+
+    <div class="split-head">
+      <input type="text" class="split-store" id="split-desc" placeholder="Nome del negozio">
+      <div class="split-head-tot">
+        <input type="number" class="split-tot-input" id="split-totale" step="0.01" inputmode="decimal"
+               oninput="aggiornaTotaleScontrino(this.value)" aria-label="Totale scontrino">
+        <span class="split-tot-lbl">totale scontrino</span>
+      </div>
     </div>
-    <div class="form-group">
-      <label class="form-label">TOTALE DELLO SCONTRINO (€)</label>
-      <input type="number" class="form-input" id="split-totale" step="0.01" inputmode="decimal"
-             oninput="aggiornaTotaleScontrino(this.value)">
-      <div style="font-size:11px;color:var(--text3);margin-top:6px">Modificalo solo se l'AI ha letto male il totale.</div>
-    </div>
-    <div class="form-group">
-      <label class="form-label">RIPARTIZIONE PER CATEGORIA</label>
+
+    <div class="split-sec">
+      <div class="split-sec-head">
+        <span class="split-sec-title">ARTICOLI</span>
+        <span class="split-sec-note" id="split-count">—</span>
+      </div>
       <div id="split-rows"></div>
-      <button class="split-add" onclick="aggiungiRiga()">+ Aggiungi categoria</button>
+      <button class="split-add" onclick="aggiungiArticolo()">+ Aggiungi articolo</button>
+    </div>
+
+    <div class="split-sec">
+      <div class="split-sec-head"><span class="split-sec-title">RIEPILOGO PER CATEGORIA</span></div>
+      <div id="split-groups"></div>
       <div class="split-total-bar" id="split-total-bar">
-        <span class="split-total-lbl">SOMMA CATEGORIE</span>
+        <span class="split-total-lbl">SOMMA ARTICOLI</span>
         <span class="split-total-val" id="split-somma">€0,00</span>
       </div>
       <div class="split-check" id="split-check"></div>
     </div>
-    <div class="form-group">
-      <label class="form-label">CONTO</label>
-      <select class="form-input" id="split-conto"><option value="">Nessun conto</option></select>
+
+    <div class="split-sec">
+      <div class="split-sec-head"><span class="split-sec-title">DETTAGLI</span></div>
+      <div class="form-group" style="margin-bottom:12px">
+        <label class="form-label">CONTO</label>
+        <select class="form-input" id="split-conto"><option value="">Nessun conto</option></select>
+      </div>
+      <div class="form-group" style="margin-bottom:12px">
+        <label class="form-label">TAG <span class="no-data-badge">per tutte le voci</span></label>
+        <div class="tag-picker" id="split-tag-picker"></div>
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label">DATA</label>
+        <input type="date" class="form-input" id="split-date">
+      </div>
     </div>
-    <div class="form-group">
-      <label class="form-label">TAG <span class="no-data-badge">valgono per tutte le voci</span></label>
-      <div class="tag-picker" id="split-tag-picker"></div>
-    </div>
-    <div class="form-group">
-      <label class="form-label">DATA</label>
-      <input type="date" class="form-input" id="split-date">
-    </div>
+
     <button class="btn-primary" id="split-save-btn" onclick="salvaSplit()">Salva</button>
     <button class="btn-secondary" onclick="closeModal('splitModal')">Annulla</button>
   </div>
 </div>
 
-<!-- MODAL: SCELTA CATEGORIA PER RIGA -->
+<!-- MODAL: CATEGORIA ARTICOLO -->
 <div class="modal-overlay" id="splitCatModal">
   <div class="modal">
     <div class="modal-handle"></div>
-    <div class="modal-title">Scegli la categoria</div>
+    <div class="modal-title">Categoria</div>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:16px" id="split-cat-titolo"></p>
     <div class="cat-pills" id="split-cat-grid"></div>
     <button class="btn-secondary" onclick="closeModal('splitCatModal')">Annulla</button>
   </div>
@@ -1527,25 +1559,32 @@ async function analyzeReceipt(){
   document.getElementById('ai-confirm-btn').style.display='none';
   try{
     syncCategories();
-    const elenco=CATEGORIES.map(c=>c.id+' ('+c.label.replace(/^\S+\s/,'')+')').join(', ');
+    const elenco=CATEGORIES.map(c=>c.id+' = '+c.label.replace(/^\S+\s/,'')).join('; ');
     const data=await callGemini([
       {inline_data:{mime_type:aiImageMime,data:aiImageBase64}},
-      {text:`Analizza questo documento di spesa (scontrino, fattura, ricevuta o screenshot di pagamento).
+      {text:`Leggi questo documento di spesa (scontrino, fattura o ricevuta) e trascrivi OGNI articolo con il suo prezzo.
 
-Raggruppa gli articoli per categoria e restituisci un importo per ciascun gruppo.
-Se tutti gli articoli appartengono alla stessa categoria, restituisci un solo gruppo.
-Usa al massimo 5 gruppi: accorpa le voci minori nella categoria più affine.
+Per ciascun articolo assegna una categoria fra queste (usa l'id esatto):
+${elenco}
 
-Rispondi SOLO con un oggetto JSON valido, senza markdown e senza testo attorno:
+Regole di lettura:
+- Riporta gli articoli riga per riga, senza raggrupparli.
+- Sugli scontrini italiani l'aliquota IVA aiuta a capire cosa hai comprato:
+  IVA 4% o 10% indica quasi sempre alimentari; IVA 22% indica prodotti non alimentari
+  (igiene, cosmetici, detersivi, casalinghi, cancelleria).
+- Le abbreviazioni vanno interpretate: CR = crema, DEP = depilatorio/a, DET = detersivo,
+  BAGNOSC = bagnoschiuma, DENT = dentifricio, SHAMP = shampoo, AFT/SHAVE = dopobarba,
+  YOG = yogurt, FORM = formaggio, PROSC = prosciutto, PZ = pezzi, CONF = confezione.
+- Creme, saponi, dopobarba, deodoranti, prodotti per capelli e depilazione NON sono alimentari.
+- Ignora le righe che non sono articoli: subtotale, sconti, punti, resto, contanti, IVA, totale.
+- Se non riesci a leggere i singoli articoli, restituisci un solo articolo con il totale.
+
+Rispondi SOLO con un oggetto JSON valido, senza markdown:
 {"descrizione":"<nome del negozio, max 30 caratteri>",
  "data":"<YYYY-MM-DD se visibile, altrimenti null>",
- "totale":<totale finale pagato, numero decimale con punto>,
- "righe":[{"categoria":"<un id esatto fra quelli elencati>","importo":<numero>,"dettaglio":"<2-4 articoli di esempio>"}]}
-
-Categorie disponibili (usa l'id, non l'etichetta): ${elenco}
-
-La somma degli importi in "righe" deve essere uguale a "totale".`}
-    ], 700);
+ "totale":<totale finale pagato, numero con punto decimale>,
+ "articoli":[{"nome":"<come scritto sullo scontrino, max 34 caratteri>","prezzo":<numero>,"categoria":"<id>"}]}`}
+    ], 1200);
     const parsed=JSON.parse(extractGeminiText(data));
     aiResultData=normalizzaScontrino(parsed);
     mostraAnteprimaScontrino();
@@ -1558,11 +1597,9 @@ La somma degli importi in "righe" deve essere uguale a "totale".`}
 }
 
 /**
- * Ripulisce la risposta dell'AI senza alterare gli importi.
- * Se la ripartizione non somma al totale dello scontrino, la
- * discrepanza viene segnalata: non viene MAI corretta d'ufficio,
- * perché assegnare la differenza a una categoria a caso
- * produrrebbe una spesa che non è mai avvenuta.
+ * Ripulisce la risposta dell'AI senza alterare i prezzi.
+ * Le discrepanze vengono segnalate, mai corrette d'ufficio:
+ * attribuire una differenza a caso creerebbe una spesa mai avvenuta.
  */
 function normalizzaScontrino(p){
   const num=v=>{
@@ -1572,83 +1609,83 @@ function normalizzaScontrino(p){
   };
   const cent=v=>Math.round(num(v)*100);
 
-  let righe=(Array.isArray(p.righe)?p.righe:[])
-    .map(r=>({
-      cat: CATEGORIES.find(c=>c.id===r.categoria) ? r.categoria : 'altro',
-      importo: Math.round(num(r.importo)*100)/100,
-      dettaglio: String(r.dettaglio||'').slice(0,60)
+  let articoli=(Array.isArray(p.articoli)?p.articoli:[])
+    .map(a=>({
+      nome: String(a.nome||'').slice(0,34).trim()||'Articolo',
+      prezzo: Math.round(num(a.prezzo)*100)/100,
+      cat: CATEGORIES.find(c=>c.id===a.categoria) ? a.categoria : null
     }))
-    .filter(r=>r.importo>0)
-    .slice(0,5);
+    .filter(a=>a.prezzo>0)
+    .slice(0,40);
 
-  const sommaC = righe.reduce((s,r)=>s+cent(r.importo),0);
   let totaleC = cent(p.totale);
-
-  // Se l'AI non ha letto il totale, lo assumo dalla somma: in quel caso
-  // non c'è nulla da confrontare.
+  const sommaC = articoli.reduce((s,a)=>s+cent(a.prezzo),0);
   if(totaleC<=0) totaleC = sommaC;
 
-  // Nessuna riga riconosciuta: una sola voce da assegnare a mano.
-  if(!righe.length){
-    righe=[{cat:null, importo:totaleC/100, dettaglio:'da assegnare'}];
+  if(!articoli.length){
+    articoli=[{nome:'Totale scontrino', prezzo:totaleC/100, cat:null}];
   }
 
   return {
     descrizione: String(p.descrizione||'').slice(0,40)||'Scontrino',
     data: (typeof p.data==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(p.data))?p.data:null,
     totale: totaleC/100,
-    righe,
-    quadra: sommaC===totaleC && righe.every(r=>r.cat)
+    articoli
   };
+}
+
+/** Raggruppa gli articoli per categoria: è ciò che diventerà transazione */
+function raggruppa(articoli){
+  const m=new Map();
+  articoli.forEach(a=>{
+    if(!a.cat || !(Number(a.prezzo)>0)) return;
+    m.set(a.cat, Math.round(((m.get(a.cat)||0) + Number(a.prezzo))*100)/100);
+  });
+  return [...m.entries()].map(([cat,importo])=>({cat,importo}));
 }
 
 function mostraAnteprimaScontrino(){
   const d=aiResultData;
-  const el=document.getElementById('ai-result');
-  const somma=d.righe.reduce((s,r)=>s+r.importo,0);
-  const diff=Math.round((d.totale-somma)*100)/100;
-  const nonAssegnate=d.righe.some(r=>!r.cat);
+  const gruppi=raggruppa(d.articoli);
+  const sommaC=Math.round(d.articoli.reduce((s,a)=>s+a.prezzo,0)*100);
+  const diff=Math.round((d.totale*100-sommaC))/100;
+  const senzaCat=d.articoli.filter(a=>!a.cat).length;
 
-  el.innerHTML=`
-    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px">
-      <strong>${esc(d.descrizione)}</strong>
+  document.getElementById('ai-result').innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px">
+      <strong style="font-size:14px">${esc(d.descrizione)}</strong>
       <span style="font-size:19px;font-weight:700">€${fmt(d.totale)}</span>
     </div>
     <div style="font-size:12px;color:var(--text3);margin-bottom:12px">
-      ${d.data?new Date(d.data).toLocaleDateString('it-IT',{day:'numeric',month:'long',year:'numeric'}):'data non rilevata — userò oggi'}
-      · ${d.righe.length===1?'una categoria':d.righe.length+' categorie'}
+      ${d.data?new Date(d.data).toLocaleDateString('it-IT',{day:'numeric',month:'long',year:'numeric'}):'data non rilevata'}
+      · ${d.articoli.length} articol${d.articoli.length===1?'o':'i'}
+      · ${gruppi.length} categori${gruppi.length===1?'a':'e'}
     </div>
-    ${d.righe.map(r=>{
-      const c=r.cat?CATEGORIES.find(x=>x.id===r.cat):null;
-      return `<div style="display:flex;align-items:center;gap:9px;padding:7px 0;border-top:1px solid var(--border)">
-        <span style="width:26px;text-align:center">${c?(c.label||'').split(' ')[0]:'❓'}</span>
-        <span style="flex:1;min-width:0">
-          <span style="font-size:13px${c?'':';color:var(--yellow)'}">${c?esc(c.label.replace(/^\S+\s/,'')):'da assegnare'}</span>
-          ${r.dettaglio?`<br><span style="font-size:11px;color:var(--text3)">${esc(r.dettaglio)}</span>`:''}
-        </span>
-        <span style="font-weight:700">€${fmt(r.importo)}</span>
+    ${gruppi.map(g=>{
+      const c=CATEGORIES.find(x=>x.id===g.cat);
+      return `<div style="display:flex;align-items:center;gap:9px;padding:6px 0;border-top:1px solid var(--border)">
+        <span style="width:24px;text-align:center">${(c?.label||'').split(' ')[0]}</span>
+        <span style="flex:1;font-size:13px">${esc((c?.label||g.cat).replace(/^\S+\s/,''))}</span>
+        <span style="font-weight:700">€${fmt(g.importo)}</span>
       </div>`;
     }).join('')}
-    ${Math.abs(diff)>=0.01?`
-      <div style="margin-top:12px;padding:11px;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.35);border-radius:var(--radius-sm);font-size:12px;line-height:1.6;color:var(--text)">
-        <strong>Mancano €${fmt(Math.abs(diff))}</strong><br>
-        Le categorie sommano a €${fmt(somma)} ma lo scontrino dice €${fmt(d.totale)}.
-        Al passo successivo decidi tu dove attribuirli: l'app non lo fa al posto tuo.
-      </div>`:''}
-    ${nonAssegnate?`
+    ${(Math.abs(diff)>=0.01||senzaCat)?`
       <div style="margin-top:12px;padding:11px;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.35);border-radius:var(--radius-sm);font-size:12px;line-height:1.6">
-        Non sono riuscito a riconoscere le categorie: le assegni tu al passo successivo.
+        ${senzaCat?`${senzaCat} articol${senzaCat===1?'o':'i'} da categorizzare. `:''}
+        ${Math.abs(diff)>=0.01?`Differenza di €${fmt(Math.abs(diff))} rispetto al totale.`:''}
+        <br>Li sistemi al passo successivo.
       </div>`:''}`;
-  el.style.display='block';
+  document.getElementById('ai-result').style.display='block';
   const btn=document.getElementById('ai-confirm-btn');
-  btn.textContent = (Math.abs(diff)>=0.01||nonAssegnate) ? 'Sistema e salva' : 'Rivedi e salva';
+  btn.textContent='Rivedi e salva';
   btn.style.display='block';
 }
 
-// ── EDITOR RIPARTIZIONE SCONTRINO ─────────────────────────────
-// Regola: la somma delle categorie deve corrispondere al centesimo
-// al totale dello scontrino. Finché non corrisponde, non si salva.
-let splitData=null, rigaInModifica=null;
+// ── EDITOR SCONTRINO ──────────────────────────────────────────
+// Si lavora sui singoli articoli: la ripartizione per categoria è
+// il risultato, non l'oggetto della modifica. Correggere la categoria
+// di un articolo è un tocco, senza calcoli a mente.
+let splitData=null, artInModifica=null;
 
 const cent=v=>Math.round((Number(v)||0)*100);
 
@@ -1660,7 +1697,7 @@ function confirmAIResult(){
     totale: aiResultData.totale,
     contoId: null,
     tags: [],
-    righe: aiResultData.righe.map(r=>({cat:r.cat, importo:r.importo, dettaglio:r.dettaglio}))
+    articoli: aiResultData.articoli.map(a=>({nome:a.nome, prezzo:a.prezzo, cat:a.cat}))
   };
   closeModal('aiModal');
   setTimeout(()=>{ renderSplitEditor(); openModal('splitModal'); }, 180);
@@ -1671,23 +1708,30 @@ function renderSplitEditor(){
   document.getElementById('split-desc').value=splitData.desc;
   document.getElementById('split-date').value=splitData.date;
   document.getElementById('split-totale').value=splitData.totale;
+  document.getElementById('split-count').textContent=
+    splitData.articoli.length+(splitData.articoli.length===1?' articolo':' articoli');
 
   const cSel=document.getElementById('split-conto');
   cSel.innerHTML='<option value="">Nessun conto</option>'+
     state.conti.map(c=>`<option value="${c.id}"${splitData.contoId===c.id?' selected':''}>${esc(c.name)} (€${fmt(c.saldo)})</option>`).join('');
 
-  document.getElementById('split-rows').innerHTML=splitData.righe.map((r,i)=>{
-    const c=r.cat?CATEGORIES.find(x=>x.id===r.cat):null;
-    return `<div class="split-row">
-      <button class="split-cat${c?'':' vuota'}" onclick="cambiaCategoriaRiga(${i})">
-        <span class="split-emoji">${c?(c.label||'').split(' ')[0]:'❓'}</span>
-        <span class="split-catname">${c?esc(c.label.replace(/^\S+\s/,'')):'Scegli categoria'}</span>
-        <svg class="ico-sm" style="opacity:.5;flex-shrink:0"><use href="#i-chevron"/></svg>
+  document.getElementById('split-rows').innerHTML=splitData.articoli.map((a,i)=>{
+    const c=a.cat?CATEGORIES.find(x=>x.id===a.cat):null;
+    const col=c?c.color:'#F59E0B';
+    return `<div class="art-row${c?'':' art-todo'}">
+      <button class="art-tap" onclick="cambiaCategoriaArticolo(${i})">
+        <span class="art-mark" style="background:${col}22;color:${col}">${c?(c.label||'').split(' ')[0]:'?'}</span>
+        <span class="art-main">
+          <span class="art-name">${esc(a.nome)}</span>
+          <span class="art-cat">${c?esc(c.label.replace(/^\S+\s/,'')):'Scegli categoria'}
+            <svg class="art-chev"><use href="#i-chevron"/></svg></span>
+        </span>
       </button>
-      <input type="number" class="split-amount" value="${r.importo}" step="0.01" inputmode="decimal"
-             oninput="aggiornaImportoRiga(${i},this.value)">
-      ${splitData.righe.length>1?`<button class="split-del" onclick="rimuoviRiga(${i})" aria-label="Rimuovi"><svg class="ico-sm"><use href="#i-close"/></svg></button>`:'<span style="width:32px;flex-shrink:0"></span>'}
-    </div>${r.dettaglio?`<div class="split-hint">${esc(r.dettaglio)}</div>`:''}`;
+      <input type="number" class="art-amount" value="${a.prezzo}" step="0.01" inputmode="decimal"
+             oninput="aggiornaPrezzoArticolo(${i},this.value)" aria-label="Prezzo">
+      <button class="art-del" onclick="rimuoviArticolo(${i})" aria-label="Rimuovi">
+        <svg class="ico-sm"><use href="#i-close"/></svg></button>
+    </div>`;
   }).join('');
 
   const tagWrap=document.getElementById('split-tag-picker');
@@ -1701,84 +1745,103 @@ function renderSplitEditor(){
   verificaQuadratura();
 }
 
-/** Confronta la somma delle righe col totale dello scontrino, al centesimo */
+/** Somma per categoria: è quello che diventerà transazione */
+function gruppiSplit(){
+  const m=new Map();
+  splitData.articoli.forEach(a=>{
+    if(!a.cat || cent(a.prezzo)<=0) return;
+    m.set(a.cat,(m.get(a.cat)||0)+cent(a.prezzo));
+  });
+  return [...m.entries()].map(([cat,c])=>({cat,importo:c/100}))
+                         .sort((x,y)=>y.importo-x.importo);
+}
+
 function verificaQuadratura(){
-  const sommaC=splitData.righe.reduce((s,r)=>s+cent(r.importo),0);
+  const sommaC=splitData.articoli.reduce((s,a)=>s+cent(a.prezzo),0);
   const totC=cent(splitData.totale);
   const diffC=totC-sommaC;
-  const senzaCat=splitData.righe.filter(r=>!r.cat&&cent(r.importo)>0).length;
+  const senzaCat=splitData.articoli.filter(a=>!a.cat && cent(a.prezzo)>0).length;
+  const gruppi=gruppiSplit();
+
+  // Riepilogo per categoria
+  document.getElementById('split-groups').innerHTML=gruppi.length
+    ? gruppi.map(g=>{
+        const c=CATEGORIES.find(x=>x.id===g.cat);
+        const q=totC?Math.round(cent(g.importo)/totC*100):0;
+        return `<div class="grp-row">
+          <span class="grp-emoji">${(c?.label||'').split(' ')[0]}</span>
+          <span class="grp-name">${esc((c?.label||g.cat).replace(/^\S+\s/,''))}</span>
+          <span class="grp-pct">${q}%</span>
+          <span class="grp-val">€${fmt(g.importo)}</span>
+        </div>`;
+      }).join('')
+    : '<div class="grp-empty">Assegna una categoria agli articoli</div>';
 
   document.getElementById('split-somma').textContent='€'+fmt(sommaC/100);
   const bar=document.getElementById('split-total-bar');
   const box=document.getElementById('split-check');
   const btn=document.getElementById('split-save-btn');
-
   const quadra = diffC===0 && senzaCat===0 && sommaC>0;
+
   bar.classList.toggle('ok',quadra);
   bar.classList.toggle('ko',!quadra);
 
   if(sommaC===0){
     box.className='split-check ko';
-    box.innerHTML='Inserisci almeno un importo.';
+    box.innerHTML='Inserisci almeno un articolo con un prezzo.';
   } else if(diffC!==0){
     const mancano=diffC>0;
     box.className='split-check ko';
     box.innerHTML=`<strong>${mancano?'Mancano':'Eccedono'} €${fmt(Math.abs(diffC)/100)}</strong><br>
-      La somma delle categorie è €${fmt(sommaC/100)}, lo scontrino dice €${fmt(totC/100)}.
-      ${mancano?`<button class="split-fix" onclick="assegnaDifferenza()">Assegna €${fmt(diffC/100)} a una categoria</button>`
-               :'Correggi gli importi, oppure aggiorna il totale dello scontrino qui sopra se l\'AI l\'ha letto male.'}`;
+      Gli articoli sommano a €${fmt(sommaC/100)}, lo scontrino dice €${fmt(totC/100)}.
+      ${mancano?`<button class="split-fix" onclick="aggiungiArticoloDifferenza()">Aggiungi un articolo da €${fmt(diffC/100)}</button>`
+               :'Correggi i prezzi, oppure il totale qui sopra se è stato letto male.'}`;
   } else if(senzaCat){
     box.className='split-check ko';
-    box.innerHTML=`Assegna una categoria a ${senzaCat===1?'una riga':'tutte le righe'} prima di salvare.`;
+    box.innerHTML=`${senzaCat===1?'Un articolo è':senzaCat+' articoli sono'} senza categoria.`;
   } else {
     box.className='split-check ok';
-    box.innerHTML='I conti tornano: la somma corrisponde al totale dello scontrino.';
+    box.innerHTML=`I conti tornano · ${gruppi.length===1?'una voce':gruppi.length+' voci'} da salvare`;
   }
 
   btn.disabled=!quadra;
   btn.style.opacity=quadra?'1':'.45';
 }
 
-function aggiornaImportoRiga(i,v){
-  splitData.righe[i].importo=Math.round((parseFloat(v)||0)*100)/100;
+function aggiornaPrezzoArticolo(i,v){
+  splitData.articoli[i].prezzo=Math.round((parseFloat(v)||0)*100)/100;
   verificaQuadratura();
 }
-
 function aggiornaTotaleScontrino(v){
   splitData.totale=Math.round((parseFloat(v)||0)*100)/100;
   verificaQuadratura();
 }
-
-/** Crea una riga con esattamente la differenza mancante, categoria da scegliere */
-function assegnaDifferenza(){
-  const sommaC=splitData.righe.reduce((s,r)=>s+cent(r.importo),0);
+function rimuoviArticolo(i){ splitData.articoli.splice(i,1); renderSplitEditor(); }
+function aggiungiArticolo(){
+  splitData.articoli.push({nome:'Nuovo articolo', prezzo:0, cat:null});
+  renderSplitEditor();
+  setTimeout(()=>cambiaCategoriaArticolo(splitData.articoli.length-1),150);
+}
+function aggiungiArticoloDifferenza(){
+  const sommaC=splitData.articoli.reduce((s,a)=>s+cent(a.prezzo),0);
   const diffC=cent(splitData.totale)-sommaC;
   if(diffC<=0) return;
-  if(splitData.righe.length>=5){ toast('Massimo 5 categorie: correggi gli importi esistenti','err'); return; }
-  splitData.righe.push({cat:null, importo:diffC/100, dettaglio:'differenza non attribuita'});
+  splitData.articoli.push({nome:'Articolo non letto', prezzo:diffC/100, cat:null});
   renderSplitEditor();
-  setTimeout(()=>cambiaCategoriaRiga(splitData.righe.length-1),200);
+  setTimeout(()=>cambiaCategoriaArticolo(splitData.articoli.length-1),150);
 }
 
-function rimuoviRiga(i){ splitData.righe.splice(i,1); renderSplitEditor(); }
-
-function aggiungiRiga(){
-  if(splitData.righe.length>=5){ toast('Massimo 5 categorie per scontrino','err'); return; }
-  splitData.righe.push({cat:null, importo:0, dettaglio:''});
-  renderSplitEditor();
-}
-
-function cambiaCategoriaRiga(i){
-  rigaInModifica=i;
+function cambiaCategoriaArticolo(i){
+  artInModifica=i;
+  document.getElementById('split-cat-titolo').textContent=splitData.articoli[i].nome;
   document.getElementById('split-cat-grid').innerHTML=CATEGORIES.map(c=>
-    `<button class="cat-pill${splitData.righe[i].cat===c.id?' selected':''}" onclick="scegliCategoriaRiga('${c.id}')">${c.label}</button>`
+    `<button class="cat-pill${splitData.articoli[i].cat===c.id?' selected':''}" onclick="scegliCategoriaArticolo('${c.id}')">${c.label}</button>`
   ).join('');
   openModal('splitCatModal');
 }
-
-function scegliCategoriaRiga(id){
-  if(rigaInModifica!==null) splitData.righe[rigaInModifica].cat=id;
-  rigaInModifica=null;
+function scegliCategoriaArticolo(id){
+  if(artInModifica!==null) splitData.articoli[artInModifica].cat=id;
+  artInModifica=null;
   closeModal('splitCatModal');
   renderSplitEditor();
 }
@@ -1796,33 +1859,31 @@ function salvaSplit(){
   const contoId=parseInt(document.getElementById('split-conto').value)||null;
   if(!desc) return toast('Inserisci una descrizione','err');
 
-  const righe=splitData.righe.filter(r=>cent(r.importo)>0);
-  if(!righe.length) return toast('Inserisci almeno un importo','err');
-  if(righe.some(r=>!r.cat)) return toast('Assegna una categoria a ogni riga','err');
+  const gruppi=gruppiSplit();
+  if(!gruppi.length) return toast('Assegna una categoria agli articoli','err');
 
-  // Ultimo controllo prima di scrivere: i conti devono tornare al centesimo
-  const sommaC=righe.reduce((s,r)=>s+cent(r.importo),0);
+  const sommaC=gruppi.reduce((s,g)=>s+cent(g.importo),0);
   if(sommaC!==cent(splitData.totale)){
     return toast('La somma non corrisponde al totale dello scontrino','err');
   }
 
   const conto=contoId?state.conti.find(c=>c.id===contoId):null;
-  righe.forEach((r,k)=>{
+  gruppi.forEach((g,k)=>{
     state.transactions.push({
       id: Date.now()+k+Math.random(),
-      amount: Number(r.importo),
-      desc, cat: r.cat, type:'uscita',
+      amount: g.importo,
+      desc, cat: g.cat, type:'uscita',
       date: date||new Date().toISOString().split('T')[0],
       contoId,
       tag: splitData.tags.length?[...splitData.tags]:null
     });
-    if(conto) conto.saldo-=Number(r.importo);
+    if(conto) conto.saldo-=g.importo;
   });
 
   snapshotPatrimonio(); saveState(); closeModal('splitModal'); renderAll(); scheduleSync();
-  toast(righe.length===1
+  toast(gruppi.length===1
     ? `Spesa di €${fmt(sommaC/100)} registrata`
-    : `${righe.length} voci · €${fmt(sommaC/100)}`,'ok');
+    : `${gruppi.length} voci · €${fmt(sommaC/100)}`,'ok');
   splitData=null;
 }
 
