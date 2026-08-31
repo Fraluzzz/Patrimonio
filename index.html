@@ -258,6 +258,19 @@ select.form-input{cursor:pointer}
 .split-fix{display:block;width:100%;margin-top:10px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:9px;color:var(--accent);font-size:12px;font-weight:600;font-family:inherit;cursor:pointer}
 .split-fix:active{background:rgba(59,130,246,.15)}
 #split-save-btn:disabled{cursor:not-allowed}
+/* Riclassifica entrate */
+.ricl-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)}
+.ricl-row:last-child{border-bottom:none}
+.ricl-todo .ricl-cat{color:var(--yellow)}
+.ricl-tap{flex:1;min-width:0;display:flex;align-items:center;gap:11px;background:none;border:none;padding:2px 0;cursor:pointer;font-family:inherit;text-align:left;color:var(--text)}
+.ricl-tap:active{opacity:.6}
+.ricl-mark{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.ricl-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.ricl-desc{font-size:14px;font-weight:600;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ricl-cat{font-size:12px;color:var(--text2);display:flex;align-items:center;gap:3px}
+.ricl-right{display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex-shrink:0}
+.ricl-tot{font-size:14px;font-weight:700;color:var(--green);font-variant-numeric:tabular-nums}
+.ricl-n{font-size:11px;color:var(--text3)}
 .no-data-badge{font-size:11px;color:var(--text3);background:var(--bg3);padding:2px 8px;border-radius:4px}
 /* Toast */
 #toast-host{position:fixed;left:0;right:0;bottom:calc(84px + var(--safe-bottom));z-index:500;display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none;padding:0 20px}
@@ -534,6 +547,16 @@ select.form-input{cursor:pointer}
         <span class="set-body"><span class="set-lbl">Categorie</span><span class="set-sub" id="cat-count-label">—</span></span>
         <svg class="row-arrow"><use href="#i-chevron"/></svg>
       </button>
+      <button class="set-row" onclick="avviaCorrezioneCategorie()">
+        <span class="set-icon" style="background:rgba(59,130,246,.14);color:var(--accent)"><svg><use href="#i-refresh"/></svg></span>
+        <span class="set-body"><span class="set-lbl">Correggi categorie dal file</span><span class="set-sub">Rilegge l'xlsx di Budget e finanze e sistema tutto</span></span>
+        <svg class="row-arrow"><use href="#i-chevron"/></svg>
+      </button>
+      <button class="set-row" onclick="apriRiclassifica()">
+        <span class="set-icon" style="background:rgba(34,197,94,.14);color:#22C55E"><svg><use href="#i-arrow-in"/></svg></span>
+        <span class="set-body"><span class="set-lbl">Riclassifica entrate</span><span class="set-sub">Sistema le categorie dello storico importato</span></span>
+        <svg class="row-arrow"><use href="#i-chevron"/></svg>
+      </button>
       <button class="set-row" onclick="openModal('tagMgrModal')">
         <span class="set-icon" style="background:rgba(99,102,241,.14);color:#818cf8"><svg><use href="#i-plus"/></svg></span>
         <span class="set-body"><span class="set-lbl">Tag</span><span class="set-sub" id="tag-count-label">—</span></span>
@@ -622,7 +645,7 @@ select.form-input{cursor:pointer}
 
   <div class="section" style="padding-bottom:24px">
     <div style="text-align:center;font-size:12px;color:var(--text3);line-height:1.7">
-      Patrimonio v6.0<br>
+      Patrimonio v6.3<br>
       I dati sono salvati solo su questo dispositivo
     </div>
   </div>
@@ -957,6 +980,31 @@ select.form-input{cursor:pointer}
   </div>
 </div>
 
+<!-- MODAL: RICLASSIFICA ENTRATE -->
+<div class="modal-overlay" id="riclModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Riclassifica entrate</div>
+    <p style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:14px">
+      Revisione manuale, raggruppata per descrizione. Utile per le entrate inserite a mano o se non hai più il file originale: per lo storico importato usa invece «Correggi categorie dal file», che è preciso.
+    </p>
+    <div id="ricl-summary" style="font-size:13px;line-height:1.6;padding:11px 13px;background:var(--bg3);border-radius:var(--radius-sm);margin-bottom:14px"></div>
+    <div id="ricl-list"></div>
+    <button class="btn-secondary" onclick="closeModal('riclModal')">Chiudi</button>
+  </div>
+</div>
+
+<!-- MODAL: CATEGORIA RICLASSIFICA -->
+<div class="modal-overlay" id="riclCatModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Sposta in</div>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:16px" id="ricl-cat-titolo"></p>
+    <div class="cat-pills" id="ricl-cat-grid"></div>
+    <button class="btn-secondary" onclick="closeModal('riclCatModal')">Annulla</button>
+  </div>
+</div>
+
 <!-- MODAL: GESTIONE CATEGORIE -->
 <div class="modal-overlay" id="catMgrModal">
   <div class="modal">
@@ -976,6 +1024,14 @@ select.form-input{cursor:pointer}
     <div class="form-group">
       <label class="form-label">NOME</label>
       <input type="text" class="form-input" id="cat-edit-name" placeholder="es. Animali, Abbonamenti...">
+    </div>
+    <div class="form-group">
+      <label class="form-label">VALIDA PER</label>
+      <div class="cat-pills">
+        <button class="cat-pill" id="cat-tipo-uscita" onclick="setCatTipo('uscita')">Uscite</button>
+        <button class="cat-pill" id="cat-tipo-entrata" onclick="setCatTipo('entrata')">Entrate</button>
+        <button class="cat-pill" id="cat-tipo-entrambi" onclick="setCatTipo('entrambi')">Entrambi</button>
+      </div>
     </div>
     <div class="form-group">
       <label class="form-label">ICONA</label>
@@ -1111,6 +1167,7 @@ select.form-input{cursor:pointer}
 </div>
 
 <input type="file" id="import-file" accept=".json" style="display:none" onchange="handleImport(event)">
+<input type="file" id="fix-cat-file" accept=".xlsx,.xls" style="display:none" onchange="handleFixCategorie(event)">
 <input type="file" id="import-bf-file" accept=".xlsx,.xls" style="display:none" onchange="handleImportBF(event)">
 
 <script>
@@ -1125,49 +1182,74 @@ let state = {
   sheetUrl:null, sheetAuto:false, sheetLastSync:null, geminiModel:null,
 };
 const DEFAULT_CATEGORIES=[
-  {id:'cibo',       label:'🍽️ Cibo fuori',     color:'#f59e0b'},
-  {id:'spesa',      label:'🛒 Spesa',           color:'#eab308'},
-  {id:'trasporti',  label:'🚗 Trasporti',       color:'#3b82f6'},
-  {id:'casa',       label:'🏠 Casa',            color:'#f97316'},
-  {id:'bollette',   label:'💡 Bollette',        color:'#fb923c'},
-  {id:'abbonamenti',label:'📱 Abbonamenti',     color:'#0ea5e9'},
-  {id:'salute',     label:'💊 Salute',          color:'#10b981'},
-  {id:'cura',       label:'💇 Cura personale',  color:'#34d399'},
-  {id:'vestiti',    label:'👕 Vestiti',         color:'#a855f7'},
-  {id:'tecnologia', label:'💻 Tecnologia',      color:'#6366f1'},
-  {id:'shopping',   label:'🛍️ Shopping',        color:'#8b5cf6'},
-  {id:'svago',      label:'🎮 Svago',           color:'#ec4899'},
-  {id:'sport',      label:'🏃 Sport',           color:'#84cc16'},
-  {id:'viaggi',     label:'✈️ Viaggi',          color:'#14b8a6'},
-  {id:'istruzione', label:'📚 Istruzione',      color:'#06b6d4'},
-  {id:'regali',     label:'🎁 Regali',          color:'#f43f5e'},
-  {id:'prestiti',   label:'🤝 Prestiti',        color:'#c084fc'},
-  {id:'finanze',    label:'🏦 Finanze',         color:'#38bdf8'},
-  {id:'entrate',    label:'💰 Entrate',         color:'#22c55e'},
-  {id:'altro',      label:'💼 Altro',           color:'#94a3b8'},
+  // tipo: 'uscita' | 'entrata' | 'entrambi'
+  {id:'cibo',       label:'🍽️ Cibo fuori',     color:'#f59e0b', tipo:'uscita'},
+  {id:'spesa',      label:'🛒 Spesa',           color:'#eab308', tipo:'uscita'},
+  {id:'trasporti',  label:'🚗 Trasporti',       color:'#3b82f6', tipo:'uscita'},
+  {id:'casa',       label:'🏠 Casa',            color:'#f97316', tipo:'uscita'},
+  {id:'bollette',   label:'💡 Bollette',        color:'#fb923c', tipo:'uscita'},
+  {id:'abbonamenti',label:'📱 Abbonamenti',     color:'#0ea5e9', tipo:'uscita'},
+  {id:'salute',     label:'💊 Salute',          color:'#10b981', tipo:'uscita'},
+  {id:'cura',       label:'💇 Cura personale',  color:'#34d399', tipo:'uscita'},
+  {id:'vestiti',    label:'👕 Vestiti',         color:'#a855f7', tipo:'uscita'},
+  {id:'tecnologia', label:'💻 Tecnologia',      color:'#6366f1', tipo:'uscita'},
+  {id:'shopping',   label:'🛍️ Shopping',        color:'#8b5cf6', tipo:'uscita'},
+  {id:'svago',      label:'🎮 Svago',           color:'#ec4899', tipo:'uscita'},
+  {id:'sport',      label:'🏃 Sport',           color:'#84cc16', tipo:'uscita'},
+  {id:'viaggi',     label:'✈️ Viaggi',          color:'#14b8a6', tipo:'uscita'},
+  {id:'istruzione', label:'📚 Istruzione',      color:'#06b6d4', tipo:'uscita'},
+  // entrate
+  {id:'stipendio',  label:'💵 Stipendio',       color:'#22c55e', tipo:'entrata'},
+  {id:'borsa',      label:'🎓 Borsa di studio', color:'#16a34a', tipo:'entrata'},
+  {id:'famiglia',   label:'👪 Famiglia',        color:'#4ade80', tipo:'entrambi'},
+  {id:'interessi',  label:'📈 Interessi',       color:'#38bdf8', tipo:'entrata'},
+  {id:'rimborsi',   label:'↩️ Rimborsi',        color:'#2dd4bf', tipo:'entrata'},
+  {id:'entrate',    label:'💰 Altre entrate',   color:'#22c55e', tipo:'entrata'},
+  // valide per entrambi
+  {id:'regali',     label:'🎁 Regali',          color:'#f43f5e', tipo:'entrambi'},
+  {id:'prestiti',   label:'🤝 Prestiti',        color:'#c084fc', tipo:'entrambi'},
+  {id:'finanze',    label:'🏦 Finanze',         color:'#38bdf8', tipo:'entrambi'},
+  {id:'altro',      label:'💼 Altro',           color:'#94a3b8', tipo:'entrambi'},
 ];
+
+/** Categorie ammesse per un tipo di transazione */
+function catsPerTipo(tipo){
+  syncCategories();
+  return CATEGORIES.filter(c=>{
+    const t=c.tipo||'uscita';
+    return t==='entrambi' || t===tipo;
+  });
+}
 // CATEGORIES è un proxy verso state.categorie (modificabile dall'utente)
 let CATEGORIES = [...DEFAULT_CATEGORIES];
 function syncCategories(){
   if(!state.categorie || !state.categorie.length){
     state.categorie=DEFAULT_CATEGORIES.map(c=>({...c}));
   } else {
-    // Aggiunge le categorie predefinite mancanti senza toccare quelle personalizzate
     const have=new Set(state.categorie.map(c=>c.id));
-    let added=false;
+    let mod=false;
     DEFAULT_CATEGORIES.forEach((d,i)=>{
       if(!have.has(d.id)){
-        // inserisce mantenendo l'ordine predefinito
         state.categorie.splice(Math.min(i,state.categorie.length),0,{...d});
-        added=true;
+        mod=true;
       }
     });
-    // Aggiorna l'emoji di 'sport' se era la vecchia (⚽ non renderizza su alcuni sistemi)
+    // Le categorie salvate prima dell'introduzione del tipo sono tutte
+    // di uscita, tranne quelle che nei valori predefiniti sono diverse.
+    state.categorie.forEach(c=>{
+      if(!c.tipo){
+        const d=DEFAULT_CATEGORIES.find(x=>x.id===c.id);
+        c.tipo = d ? d.tipo : 'uscita';
+        mod=true;
+      }
+    });
     const sp=state.categorie.find(c=>c.id==='sport');
-    if(sp && sp.label.startsWith('⚽')) { sp.label='🏃 Sport'; added=true; }
+    if(sp && sp.label.startsWith('⚽')){ sp.label='🏃 Sport'; mod=true; }
     const cb=state.categorie.find(c=>c.id==='cibo');
-    if(cb && cb.label==='🍕 Cibo'){ cb.label='🍽️ Cibo fuori'; added=true; }
-    if(added) saveState();
+    if(cb && cb.label==='🍕 Cibo'){ cb.label='🍽️ Cibo fuori'; mod=true; }
+    const en=state.categorie.find(c=>c.id==='entrate');
+    if(en && en.label==='💰 Entrate'){ en.label='💰 Altre entrate'; mod=true; }
+    if(mod) saveState();
   }
   CATEGORIES = state.categorie;
 }
@@ -1347,7 +1429,7 @@ function initAddModal(){
     document.getElementById('add-date').value=tx.date;
     selectedTags=txTags(tx);
   } else {
-    selectedCat='cibo'; selectedType='uscita';
+    selectedType='uscita'; selectedCat='cibo';
     document.getElementById('add-amount').value='';
     document.getElementById('add-desc').value='';
     document.getElementById('add-date').value=new Date().toISOString().split('T')[0];
@@ -1356,8 +1438,7 @@ function initAddModal(){
   document.getElementById('type-uscita').classList.toggle('selected',selectedType==='uscita');
   document.getElementById('type-entrata').classList.toggle('selected',selectedType==='entrata');
   // Category pills with data-id attribute for reliable matching
-  const pills=document.getElementById('add-cat-pills');
-  pills.innerHTML=CATEGORIES.map(c=>`<button class="cat-pill${c.id===selectedCat?' selected':''}" data-id="${c.id}" onclick="selectCat('${c.id}',this)">${c.label}</button>`).join('');
+  renderCatPills();
   // Conto select
   const cSel=document.getElementById('add-conto');
   cSel.innerHTML='<option value="">Nessun conto</option>'+state.conti.map(c=>`<option value="${c.id}"${tx?.contoId===c.id?' selected':''}>${esc(c.name)} (€${fmt(c.saldo)})</option>`).join('');
@@ -1366,7 +1447,24 @@ function initAddModal(){
 }
 
 function selectCat(id,btn){selectedCat=id;document.querySelectorAll('#add-cat-pills .cat-pill').forEach(p=>p.classList.remove('selected'));btn.classList.add('selected');}
-function setType(t){selectedType=t;document.getElementById('type-uscita').classList.toggle('selected',t==='uscita');document.getElementById('type-entrata').classList.toggle('selected',t==='entrata');}
+function setType(t){
+  selectedType=t;
+  document.getElementById('type-uscita').classList.toggle('selected',t==='uscita');
+  document.getElementById('type-entrata').classList.toggle('selected',t==='entrata');
+  renderCatPills();
+}
+
+/** Mostra solo le categorie ammesse per il tipo selezionato */
+function renderCatPills(){
+  const pills=document.getElementById('add-cat-pills');
+  if(!pills) return;
+  const lista=catsPerTipo(selectedType);
+  // Se la categoria scelta non vale per questo tipo, passa alla prima disponibile
+  if(!lista.find(c=>c.id===selectedCat)) selectedCat=lista.length?lista[0].id:'altro';
+  pills.innerHTML=lista.map(c=>
+    `<button class="cat-pill${c.id===selectedCat?' selected':''}" data-id="${c.id}" onclick="selectCat('${c.id}',this)">${c.label}</button>`
+  ).join('');
+}
 
 // ── SAVE TRANSACTION ──────────────────────────────────────────
 function saveTransaction(){
@@ -1559,7 +1657,7 @@ async function analyzeReceipt(){
   document.getElementById('ai-confirm-btn').style.display='none';
   try{
     syncCategories();
-    const elenco=CATEGORIES.map(c=>c.id+' = '+c.label.replace(/^\S+\s/,'')).join('; ');
+    const elenco=catsPerTipo('uscita').map(c=>c.id+' = '+c.label.replace(/^\S+\s/,'')).join('; ');
     const data=await callGemini([
       {inline_data:{mime_type:aiImageMime,data:aiImageBase64}},
       {text:`Leggi questo documento di spesa (scontrino, fattura o ricevuta) e trascrivi OGNI articolo con il suo prezzo.
@@ -1834,7 +1932,7 @@ function aggiungiArticoloDifferenza(){
 function cambiaCategoriaArticolo(i){
   artInModifica=i;
   document.getElementById('split-cat-titolo').textContent=splitData.articoli[i].nome;
-  document.getElementById('split-cat-grid').innerHTML=CATEGORIES.map(c=>
+  document.getElementById('split-cat-grid').innerHTML=catsPerTipo('uscita').map(c=>
     `<button class="cat-pill${splitData.articoli[i].cat===c.id?' selected':''}" onclick="scegliCategoriaArticolo('${c.id}')">${c.label}</button>`
   ).join('');
   openModal('splitCatModal');
@@ -2456,10 +2554,186 @@ function askCancel(){
 }
 
 
+// ── CORREZIONE CATEGORIE DALLO STORICO ────────────────────────
+// Le transazioni importate hanno perso la categoria originale: la
+// descrizione proviene dal Commento, non dalla Categoria. L'unico
+// posto dove quel dato esiste ancora è il file di Budget e finanze.
+// Qui lo si rilegge e si corregge solo la categoria, senza duplicare
+// nulla: l'abbinamento avviene su data + importo + tipo.
+function avviaCorrezioneCategorie(){
+  document.getElementById('fix-cat-file').click();
+}
+
+function handleFixCategorie(e){
+  const file=e.target.files[0]; e.target.value='';
+  if(!file) return;
+  if(!window.XLSX){
+    const sc=document.createElement('script');
+    sc.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    sc.onload=()=>eseguiCorrezione(file);
+    sc.onerror=()=>toast('Errore nel caricamento della libreria','err');
+    document.head.appendChild(sc);
+  } else eseguiCorrezione(file);
+}
+
+function eseguiCorrezione(file){
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    try{
+      syncCategories();
+      const wb=XLSX.read(new Uint8Array(ev.target.result),{type:'array',cellDates:true});
+
+      // Indice delle transazioni dell'app: data|importo|tipo
+      const idx=new Map();
+      state.transactions.forEach(t=>{
+        const k=t.date+'|'+Math.round(t.amount*100)+'|'+t.type;
+        if(!idx.has(k)) idx.set(k,[]);
+        idx.get(k).push(t);
+      });
+
+      let corrette=0, invariate=0, nonTrovate=0;
+      const dettaglio=new Map();
+
+      const leggi=(nomeFoglio,tipo)=>{
+        const ws=wb.Sheets[nomeFoglio]; if(!ws) return;
+        const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+        const hi=rows.findIndex(r=>r.some(c=>String(c).includes('Data e ora')));
+        if(hi===-1) return;
+        const hdr=rows[hi].map(h=>String(h).trim());
+        const iD=hdr.findIndex(h=>h.includes('Data e ora'));
+        const iA=hdr.findIndex(h=>h.includes('Importo in valuta predefinita')||h.includes('Importo nella valuta in uscita'));
+        const iC=hdr.findIndex(h=>h==='Categoria');
+        const mappa = tipo==='entrata' ? BF_CAT_MAP_ENTRATE : BF_CAT_MAP;
+
+        for(let r=hi+1;r<rows.length;r++){
+          const row=rows[r]; if(!row||row.every(c=>c==='')) continue;
+          let dv=row[iD], ds='';
+          if(dv instanceof Date) ds=dv.toISOString().split('T')[0];
+          else if(typeof dv==='number') ds=new Date(Math.round((dv-25569)*86400*1000)).toISOString().split('T')[0];
+          else if(typeof dv==='string'&&dv) ds=dv.split('T')[0];
+          const amt=parseFloat(row[iA]);
+          if(!ds||!amt||isNaN(amt)||amt<=0) continue;
+
+          const catOrig=String(row[iC]||'').trim();
+          const nuova=mappa[catOrig.toLowerCase()] || (tipo==='entrata'?'entrate':'altro');
+
+          const k=ds+'|'+Math.round(amt*100)+'|'+tipo;
+          const cand=idx.get(k);
+          if(!cand||!cand.length){ nonTrovate++; continue; }
+          const t=cand.shift();          // consuma: gestisce eventuali doppioni
+          if(t.cat===nuova){ invariate++; continue; }
+          const da=CATEGORIES.find(c=>c.id===t.cat);
+          const a=CATEGORIES.find(c=>c.id===nuova);
+          const key=(da?da.label:t.cat)+' → '+(a?a.label:nuova);
+          dettaglio.set(key,(dettaglio.get(key)||0)+1);
+          t.cat=nuova;
+          corrette++;
+        }
+      };
+
+      leggi('Spese','uscita');
+      leggi('Entrate','entrata');
+
+      if(corrette) { saveState(); renderAll(); scheduleSync(); }
+
+      const righe=[...dettaglio.entries()].sort((a,b)=>b[1]-a[1])
+        .map(([k,n])=>`  ${n}×  ${k}`).join('\n');
+      alert(
+        `Correzione completata\n\n`+
+        `${corrette} transazioni riclassificate\n`+
+        `${invariate} già corrette\n`+
+        `${nonTrovate} righe del file senza corrispondenza nell'app\n`+
+        (righe?`\nSpostamenti:\n${righe}`:'')
+      );
+    }catch(err){
+      alert('Errore durante la correzione\n\n'+err.message);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ── RICLASSIFICA ENTRATE ──────────────────────────────────────
+// Lo storico importato da Budget e finanze è finito in categorie di
+// spesa, perché all'epoca l'app non distingueva entrate e uscite.
+// Qui le entrate vengono raggruppate per categoria e descrizione,
+// così puoi spostarle in blocco senza toccarle una per una.
+let riclData=null;
+
+function apriRiclassifica(){
+  syncCategories();
+  const entrate=state.transactions.filter(t=>t.type==='entrata');
+  if(!entrate.length){ toast('Non ci sono entrate da riclassificare'); return; }
+
+  const m=new Map();
+  entrate.forEach(t=>{
+    const k=(t.cat||'—')+'§'+(t.desc||'');
+    if(!m.has(k)) m.set(k,{cat:t.cat, desc:t.desc, ids:[], tot:0});
+    const g=m.get(k);
+    g.ids.push(t.id); g.tot+=t.amount;
+  });
+  riclData=[...m.values()].sort((a,b)=>b.tot-a.tot);
+  renderRiclassifica();
+  openModal('riclModal');
+}
+
+function renderRiclassifica(){
+  const valide=catsPerTipo('entrata');
+  const idsValidi=new Set(valide.map(c=>c.id));
+  const daSistemare=riclData.filter(g=>!idsValidi.has(g.cat)).length;
+
+  document.getElementById('ricl-summary').innerHTML=
+    daSistemare
+      ? `<span style="color:var(--yellow)"><strong>${daSistemare}</strong> grupp${daSistemare===1?'o è':'i sono'} in una categoria di sola uscita.</span>`
+      : '<span style="color:var(--green)">Tutte le entrate sono in categorie corrette.</span>';
+
+  document.getElementById('ricl-list').innerHTML=riclData.map((g,i)=>{
+    const c=CATEGORIES.find(x=>x.id===g.cat);
+    const ok=idsValidi.has(g.cat);
+    return `<div class="ricl-row${ok?'':' ricl-todo'}">
+      <button class="ricl-tap" onclick="cambiaCatRicl(${i})">
+        <span class="ricl-mark" style="background:${(c?.color||'#94a3b8')}22;color:${c?.color||'#94a3b8'}">
+          ${c?(c.label||'').split(' ')[0]:'?'}</span>
+        <span class="ricl-main">
+          <span class="ricl-desc">${esc(g.desc||'(senza descrizione)')}</span>
+          <span class="ricl-cat">${c?esc(c.label.replace(/^\S+\s/,'')):'sconosciuta'}
+            <svg class="art-chev"><use href="#i-chevron"/></svg></span>
+        </span>
+      </button>
+      <span class="ricl-right">
+        <span class="ricl-tot hide-val">€${fmt(g.tot)}</span>
+        <span class="ricl-n">${g.ids.length} mov.</span>
+      </span>
+    </div>`;
+  }).join('');
+}
+
+let riclInModifica=null;
+function cambiaCatRicl(i){
+  riclInModifica=i;
+  const g=riclData[i];
+  document.getElementById('ricl-cat-titolo').textContent=
+    (g.desc||'(senza descrizione)')+' · '+g.ids.length+' movimenti · €'+fmt(g.tot);
+  document.getElementById('ricl-cat-grid').innerHTML=catsPerTipo('entrata').map(c=>
+    `<button class="cat-pill${g.cat===c.id?' selected':''}" onclick="applicaCatRicl('${c.id}')">${c.label}</button>`
+  ).join('');
+  openModal('riclCatModal');
+}
+
+function applicaCatRicl(id){
+  if(riclInModifica===null) return;
+  const g=riclData[riclInModifica];
+  const set=new Set(g.ids);
+  state.transactions.forEach(t=>{ if(set.has(t.id)) t.cat=id; });
+  g.cat=id;
+  riclInModifica=null;
+  saveState(); closeModal('riclCatModal'); renderRiclassifica(); renderAll(); scheduleSync();
+  toast(g.ids.length+' movimenti spostati','ok');
+}
+
 // ── GESTIONE CATEGORIE ────────────────────────────────────────
 const CAT_COLORS=['#f59e0b','#3b82f6','#8b5cf6','#ec4899','#10b981','#f97316','#06b6d4','#84cc16','#14b8a6','#ef4444','#a855f7','#94a3b8'];
 const CAT_EMOJIS=['🍽️','🛒','🍕','☕','🍺','🚗','⛽','🚌','🏠','💡','🧾','📱','💻','💊','🩺','💇','🧴','👕','👟','🛍️','🎮','🎬','🎵','🏃','🏋️','⚽','✈️','🏨','📚','🎓','🎁','🤝','🏦','💰','📈','🐾','🔧','🌿','❤️','💼'];
-let editingCatId=null, catEmoji='💼', catColor='#94a3b8';
+let editingCatId=null, catEmoji='💼', catColor='#94a3b8', catTipo='uscita';
 
 function renderCatMgr(){
   const el=document.getElementById('cat-mgr-list'); if(!el) return;
@@ -2470,7 +2744,7 @@ function renderCatMgr(){
     const nome=c.label.split(' ').slice(1).join(' ');
     return `<div class="mgr-row">
       <div class="mgr-swatch" style="background:${c.color}22;color:${c.color}">${emoji}</div>
-      <div class="mgr-name">${esc(nome)}<div class="mgr-count">${n} transazion${n===1?'e':'i'}</div></div>
+      <div class="mgr-name">${esc(nome)}<div class="mgr-count">${{uscita:'uscite',entrata:'entrate',entrambi:'uscite e entrate'}[c.tipo||'uscita']} · ${n} transazion${n===1?'e':'i'}</div></div>
       <div class="mgr-actions">
         <button class="action-btn" onclick="openCatEdit('${c.id}')">✏️</button>
         <button class="action-btn red" onclick="deleteCategoria('${c.id}')">✕</button>
@@ -2487,11 +2761,13 @@ function openCatEdit(id){
   if(cat){
     catEmoji=cat.label.split(' ')[0];
     catColor=cat.color;
+    catTipo=cat.tipo||'uscita';
     document.getElementById('cat-edit-name').value=cat.label.split(' ').slice(1).join(' ');
   } else {
-    catEmoji='💼'; catColor='#94a3b8';
+    catEmoji='💼'; catColor='#94a3b8'; catTipo='uscita';
     document.getElementById('cat-edit-name').value='';
   }
+  setCatTipo(catTipo);
   document.getElementById('cat-emoji-grid').innerHTML=CAT_EMOJIS.map(e=>
     `<button class="emoji-opt${e===catEmoji?' selected':''}" onclick="pickCatEmoji('${e}',this)">${e}</button>`).join('');
   document.getElementById('cat-color-grid').innerHTML=CAT_COLORS.map(c=>
@@ -2499,6 +2775,14 @@ function openCatEdit(id){
   closeModal('catMgrModal');
   openModal('catEditModal');
 }
+function setCatTipo(t){
+  catTipo=t;
+  ['uscita','entrata','entrambi'].forEach(x=>{
+    const b=document.getElementById('cat-tipo-'+x);
+    if(b) b.classList.toggle('selected',x===t);
+  });
+}
+
 function pickCatEmoji(e,btn){catEmoji=e;document.querySelectorAll('#cat-emoji-grid .emoji-opt').forEach(x=>x.classList.remove('selected'));btn.classList.add('selected');}
 function pickCatColor(c,el){catColor=c;document.querySelectorAll('#cat-color-grid .color-dot').forEach(x=>x.classList.remove('selected'));el.classList.add('selected');}
 
@@ -2508,10 +2792,10 @@ function saveCategoria(){
   if(!nome) return toast('Inserisci un nome','err');
   if(editingCatId){
     const c=CATEGORIES.find(c=>c.id===editingCatId);
-    if(c){c.label=catEmoji+' '+nome;c.color=catColor;}
+    if(c){c.label=catEmoji+' '+nome;c.color=catColor;c.tipo=catTipo;}
   } else {
     const id=nome.toLowerCase().replace(/[^a-z0-9]/g,'_').slice(0,20)+'_'+Date.now().toString(36).slice(-4);
-    state.categorie.push({id,label:catEmoji+' '+nome,color:catColor});
+    state.categorie.push({id,label:catEmoji+' '+nome,color:catColor,tipo:catTipo});
   }
   editingCatId=null;
   saveState();closeModal('catEditModal');renderAll();openModal('catMgrModal');scheduleSync();
@@ -3439,6 +3723,19 @@ function handleImport(e){
 }
 
 // ── IMPORT BUDGET E FINANZE ───────────────────────────────────
+// Nel foglio Entrate alcune etichette hanno un significato diverso:
+// "Prestiti" in uscita è un prestito concesso, in entrata è una restituzione.
+const BF_CAT_MAP_ENTRATE={
+  'borsa di studio':'borsa','stipendio':'stipendio','salario':'stipendio',
+  'genitori':'famiglia','famiglia':'famiglia',
+  'interessi':'interessi','trade republic':'interessi',
+  'crédit agricole italia':'interessi','credit agricole italia':'interessi',
+  'rimborso':'rimborsi','rimborsi':'rimborsi','reso':'rimborsi',
+  'prestiti':'prestiti','prestito':'prestiti',
+  'regalo':'regali','regali':'regali',
+  'altro':'entrate','vendita':'entrate',
+};
+
 const BF_CAT_MAP={
   // Cibo
   'cibo fuori':'cibo','aperitivo':'cibo','ristorante':'cibo','bar':'cibo',
@@ -3461,10 +3758,10 @@ const BF_CAT_MAP={
   'istruzione':'istruzione','libri':'istruzione','università':'istruzione',
   // Altro
   'regali':'regali','regalo':'regali',
-  'prestiti':'prestiti','prestito':'prestiti','genitori':'prestiti',
+  'prestiti':'prestiti','prestito':'prestiti',
   'trade republic':'finanze','crédit agricole italia':'finanze','credit agricole italia':'finanze',
-  'interessi':'finanze','commissioni':'finanze','banca':'finanze','investimenti':'finanze',
-  'borsa di studio':'entrate','stipendio':'entrate','rimborso':'entrate',
+  'commissioni':'finanze','banca':'finanze','investimenti':'finanze',
+  'borsa di studio':'borsa','stipendio':'stipendio','rimborso':'rimborsi','rimborsi':'rimborsi','interessi':'interessi','genitori':'famiglia','famiglia':'famiglia',
   'beneficenza':'altro','multe':'altro','altro':'altro',
 };
 function handleImportBF(e){const file=e.target.files[0];if(!file)return;if(!window.XLSX){const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';s.onload=()=>parseBFFile(file);s.onerror=()=>toast('Errore di rete: riprova','err');document.head.appendChild(s);}else parseBFFile(file);e.target.value='';}
@@ -3493,7 +3790,8 @@ function parseBFFile(file){
           if(!ds){skipped++;continue;}
           const amount=parseFloat(row[iA]);if(!amount||isNaN(amount)||amount<=0){skipped++;continue;}
           const catRaw=String(row[iC]||'').toLowerCase().trim();
-          const cat=BF_CAT_MAP[catRaw]||'altro';
+          const mappa = defType==='entrata' ? BF_CAT_MAP_ENTRATE : BF_CAT_MAP;
+          const cat=mappa[catRaw]||(defType==='entrata'?'entrate':'altro');
           const desc=String(row[iCo]||row[iC]||'Importato').trim()||'Importato';
           const tagRaw=iTag>=0?String(row[iTag]||'').trim():'';
           const tag=tagRaw?tagRaw.split(',').map(x=>x.trim()).filter(Boolean):null;
