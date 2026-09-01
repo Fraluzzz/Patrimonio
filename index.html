@@ -295,6 +295,11 @@ select.form-input{cursor:pointer}
 .period-caret{font-size:20px;color:var(--text3);line-height:1;margin-top:-6px}
 /* Filter chips */
 .filter-row{display:flex;gap:8px;padding:0 16px 4px;align-items:center;flex-wrap:wrap}
+.seg{display:flex;gap:4px;margin:12px 16px 0;padding:4px;background:var(--bg3);border:1px solid var(--border);border-radius:12px}
+.seg button{flex:1;background:none;border:none;color:var(--text2);font-family:inherit;font-size:13px;font-weight:600;padding:8px 4px;border-radius:9px;cursor:pointer;transition:background .18s,color .18s}
+.seg button.on{background:var(--bg2);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.35)}
+.seg button.on[data-t="uscita"]{color:var(--red)}
+.seg button.on[data-t="entrata"]{color:var(--green)}
 .filter-chip{position:relative;display:inline-flex;align-items:center;gap:6px;background:var(--bg3);border:1px solid var(--border);border-radius:20px;padding:7px 12px;font-size:13px;color:var(--text2);transition:all .2s}
 .filter-chip.active{background:rgba(59,130,246,.18);border-color:var(--accent);color:var(--accent)}
 .filter-chip select{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-family:inherit;-webkit-appearance:none}
@@ -320,7 +325,7 @@ select.form-input{cursor:pointer}
 .ai-preview{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;margin-bottom:16px;font-size:13px;color:var(--text2);line-height:1.6}
 .ai-loading{display:flex;align-items:center;gap:10px;color:var(--text2);font-size:14px;padding:16px 0}
 .spinner{width:20px;height:20px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
-@keyframes spin{to{transform:rotate(360deg)}}
+
 /* Grafico storico */
 .chart-wrap{overflow-x:auto;padding-bottom:8px}
 .chart-wrap canvas{min-width:300px}
@@ -437,6 +442,12 @@ select.form-input{cursor:pointer}
       <div id="confronto-content"></div>
     </div>
   </div>
+  <!-- Tipo di movimento -->
+  <div class="seg" id="tx-type-seg">
+    <button data-t="" class="on" onclick="setTxTypeFilter('')">Tutte</button>
+    <button data-t="uscita" onclick="setTxTypeFilter('uscita')">Uscite</button>
+    <button data-t="entrata" onclick="setTxTypeFilter('entrata')">Entrate</button>
+  </div>
   <!-- Search -->
   <div class="search-bar">
     <span style="color:var(--text3);font-size:15px">🔍</span>
@@ -457,7 +468,7 @@ select.form-input{cursor:pointer}
     </div>
     <button class="filter-reset" id="filter-reset" onclick="resetFilters()" style="display:none">Azzera</button>
   </div>
-  <div class="section-title" style="padding:0 16px 12px">Per categoria</div>
+  <div class="section-title" style="padding:0 16px 12px" id="cat-grid-title">Uscite per categoria</div>
   <div class="cat-grid" id="cat-grid"></div>
   <div class="section">
     <div class="section-title">Transazioni</div>
@@ -645,7 +656,7 @@ select.form-input{cursor:pointer}
 
   <div class="section" style="padding-bottom:24px">
     <div style="text-align:center;font-size:12px;color:var(--text3);line-height:1.7">
-      Patrimonio v6.3<br>
+      Patrimonio v6.4<br>
       I dati sono salvati solo su questo dispositivo
     </div>
   </div>
@@ -1030,7 +1041,6 @@ select.form-input{cursor:pointer}
       <div class="cat-pills">
         <button class="cat-pill" id="cat-tipo-uscita" onclick="setCatTipo('uscita')">Uscite</button>
         <button class="cat-pill" id="cat-tipo-entrata" onclick="setCatTipo('entrata')">Entrate</button>
-        <button class="cat-pill" id="cat-tipo-entrambi" onclick="setCatTipo('entrambi')">Entrambi</button>
       </div>
     </div>
     <div class="form-group">
@@ -1182,43 +1192,48 @@ let state = {
   sheetUrl:null, sheetAuto:false, sheetLastSync:null, geminiModel:null,
 };
 const DEFAULT_CATEGORIES=[
-  // tipo: 'uscita' | 'entrata' | 'entrambi'
-  {id:'cibo',       label:'🍽️ Cibo fuori',     color:'#f59e0b', tipo:'uscita'},
-  {id:'spesa',      label:'🛒 Spesa',           color:'#eab308', tipo:'uscita'},
-  {id:'trasporti',  label:'🚗 Trasporti',       color:'#3b82f6', tipo:'uscita'},
-  {id:'casa',       label:'🏠 Casa',            color:'#f97316', tipo:'uscita'},
-  {id:'bollette',   label:'💡 Bollette',        color:'#fb923c', tipo:'uscita'},
-  {id:'abbonamenti',label:'📱 Abbonamenti',     color:'#0ea5e9', tipo:'uscita'},
-  {id:'salute',     label:'💊 Salute',          color:'#10b981', tipo:'uscita'},
-  {id:'cura',       label:'💇 Cura personale',  color:'#34d399', tipo:'uscita'},
-  {id:'vestiti',    label:'👕 Vestiti',         color:'#a855f7', tipo:'uscita'},
-  {id:'tecnologia', label:'💻 Tecnologia',      color:'#6366f1', tipo:'uscita'},
-  {id:'shopping',   label:'🛍️ Shopping',        color:'#8b5cf6', tipo:'uscita'},
-  {id:'svago',      label:'🎮 Svago',           color:'#ec4899', tipo:'uscita'},
-  {id:'sport',      label:'🏃 Sport',           color:'#84cc16', tipo:'uscita'},
-  {id:'viaggi',     label:'✈️ Viaggi',          color:'#14b8a6', tipo:'uscita'},
-  {id:'istruzione', label:'📚 Istruzione',      color:'#06b6d4', tipo:'uscita'},
-  // entrate
-  {id:'stipendio',  label:'💵 Stipendio',       color:'#22c55e', tipo:'entrata'},
-  {id:'borsa',      label:'🎓 Borsa di studio', color:'#16a34a', tipo:'entrata'},
-  {id:'famiglia',   label:'👪 Famiglia',        color:'#4ade80', tipo:'entrambi'},
-  {id:'interessi',  label:'📈 Interessi',       color:'#38bdf8', tipo:'entrata'},
-  {id:'rimborsi',   label:'↩️ Rimborsi',        color:'#2dd4bf', tipo:'entrata'},
-  {id:'entrate',    label:'💰 Altre entrate',   color:'#22c55e', tipo:'entrata'},
-  // valide per entrambi
-  {id:'regali',     label:'🎁 Regali',          color:'#f43f5e', tipo:'entrambi'},
-  {id:'prestiti',   label:'🤝 Prestiti',        color:'#c084fc', tipo:'entrambi'},
-  {id:'finanze',    label:'🏦 Finanze',         color:'#38bdf8', tipo:'entrambi'},
-  {id:'altro',      label:'💼 Altro',           color:'#94a3b8', tipo:'entrambi'},
+  // tipo: 'uscita' | 'entrata'  — nessuna categoria vale per entrambi
+  // ── USCITE ──
+  {id:'cibo',       label:'🍽️ Cibo fuori',        color:'#f59e0b', tipo:'uscita'},
+  {id:'spesa',      label:'🛒 Spesa',              color:'#eab308', tipo:'uscita'},
+  {id:'trasporti',  label:'🚗 Trasporti',          color:'#3b82f6', tipo:'uscita'},
+  {id:'casa',       label:'🏠 Casa',               color:'#f97316', tipo:'uscita'},
+  {id:'bollette',   label:'💡 Bollette',           color:'#fb923c', tipo:'uscita'},
+  {id:'abbonamenti',label:'📱 Abbonamenti',        color:'#0ea5e9', tipo:'uscita'},
+  {id:'salute',     label:'💊 Salute',             color:'#10b981', tipo:'uscita'},
+  {id:'cura',       label:'💇 Cura personale',     color:'#34d399', tipo:'uscita'},
+  {id:'vestiti',    label:'👕 Vestiti',            color:'#a855f7', tipo:'uscita'},
+  {id:'tecnologia', label:'💻 Tecnologia',         color:'#6366f1', tipo:'uscita'},
+  {id:'shopping',   label:'🛍️ Shopping',           color:'#8b5cf6', tipo:'uscita'},
+  {id:'svago',      label:'🎮 Svago',              color:'#ec4899', tipo:'uscita'},
+  {id:'sport',      label:'🏃 Sport',              color:'#84cc16', tipo:'uscita'},
+  {id:'viaggi',     label:'✈️ Viaggi',             color:'#14b8a6', tipo:'uscita'},
+  {id:'istruzione', label:'📚 Istruzione',         color:'#06b6d4', tipo:'uscita'},
+  {id:'regali',     label:'🎁 Regali',             color:'#f43f5e', tipo:'uscita'},
+  {id:'prestiti',   label:'🤝 Prestiti',           color:'#c084fc', tipo:'uscita'},
+  {id:'finanze',    label:'🏦 Finanze',            color:'#38bdf8', tipo:'uscita'},
+  {id:'altro',      label:'💼 Altro',              color:'#94a3b8', tipo:'uscita'},
+  // ── ENTRATE ──
+  {id:'stipendio',  label:'💵 Stipendio',          color:'#22c55e', tipo:'entrata'},
+  {id:'borsa',      label:'🎓 Borsa di studio',    color:'#16a34a', tipo:'entrata'},
+  {id:'famiglia',   label:'👪 Famiglia',           color:'#4ade80', tipo:'entrata'},
+  {id:'interessi',  label:'📈 Interessi',          color:'#38bdf8', tipo:'entrata'},
+  {id:'rimborsi',   label:'↩️ Rimborsi',           color:'#2dd4bf', tipo:'entrata'},
+  {id:'regali_in',  label:'🎁 Regali',             color:'#f43f5e', tipo:'entrata'},
+  {id:'prestiti_in',label:'🤝 Prestiti',           color:'#c084fc', tipo:'entrata'},
+  {id:'entrate',    label:'💰 Altre entrate',      color:'#22c55e', tipo:'entrata'},
 ];
 
 /** Categorie ammesse per un tipo di transazione */
 function catsPerTipo(tipo){
   syncCategories();
-  return CATEGORIES.filter(c=>{
-    const t=c.tipo||'uscita';
-    return t==='entrambi' || t===tipo;
-  });
+  return CATEGORIES.filter(c=>(c.tipo||'uscita')===tipo);
+}
+/** Categoria di ripiego valida per il tipo indicato */
+function catFallback(tipo){
+  const l=catsPerTipo(tipo);
+  const c = tipo==='entrata' ? (l.find(x=>x.id==='entrate')||l[0]) : (l.find(x=>x.id==='altro')||l[0]);
+  return c ? c.id : 'altro';
 }
 // CATEGORIES è un proxy verso state.categorie (modificabile dall'utente)
 let CATEGORIES = [...DEFAULT_CATEGORIES];
@@ -1249,15 +1264,76 @@ function syncCategories(){
     if(cb && cb.label==='🍕 Cibo'){ cb.label='🍽️ Cibo fuori'; mod=true; }
     const en=state.categorie.find(c=>c.id==='entrate');
     if(en && en.label==='💰 Entrate'){ en.label='💰 Altre entrate'; mod=true; }
+    // Nomi originali: due categorie possono chiamarsi uguale su lati opposti
+    [['regali','🎁 Regali fatti','🎁 Regali'],
+     ['prestiti','🤝 Prestiti concessi','🤝 Prestiti'],
+     ['regali_in','🎁 Regali ricevuti','🎁 Regali'],
+     ['prestiti_in','🤝 Prestiti ricevuti','🤝 Prestiti']].forEach(([id,vecchia,nuova])=>{
+      const c=state.categorie.find(x=>x.id===id);
+      if(c && c.label===vecchia){ c.label=nuova; mod=true; }
+    });
     if(mod) saveState();
   }
   CATEGORIES = state.categorie;
+}
+
+/** v6.4 — separazione netta fra categorie di entrata e di uscita.
+ *  Le vecchie categorie "entrambi" vengono assegnate a un solo lato e le
+ *  transazioni finite sul lato sbagliato passano alla categoria gemella:
+ *  nessun movimento e nessun importo viene perso. */
+function migrateCategorieStrict(){
+  if(state.catStrictV1) return;
+  syncCategories();
+  const byId=id=>state.categorie.find(c=>c.id===id);
+  const LATO={regali:'uscita',prestiti:'uscita',finanze:'uscita',altro:'uscita',famiglia:'entrata'};
+  const GEMELLA={
+    entrata:{regali:'regali_in',prestiti:'prestiti_in',finanze:'interessi',altro:'entrate'},
+    uscita :{regali_in:'regali',prestiti_in:'prestiti',interessi:'finanze',entrate:'altro',
+             stipendio:'altro',borsa:'altro',rimborsi:'altro'}
+  };
+  // 1. Nessuna categoria può restare valida per entrambi i tipi
+  state.categorie.forEach(c=>{
+    if((c.tipo||'uscita')!=='entrambi') return;
+    if(LATO[c.id]){ c.tipo=LATO[c.id]; return; }
+    const nE=state.transactions.filter(t=>t.cat===c.id&&t.type==='entrata').length;
+    const nU=state.transactions.filter(t=>t.cat===c.id&&t.type==='uscita').length;
+    c.tipo = nE>nU ? 'entrata' : 'uscita';
+  });
+  CATEGORIES=state.categorie;
+  // 2. Le transazioni sul lato sbagliato passano alla gemella corrispondente
+  let spostate=0;
+  state.transactions.forEach(t=>{
+    const c=byId(t.cat);
+    if(!c){ t.cat=catFallback(t.type); spostate++; return; }
+    if((c.tipo||'uscita')===t.type) return;
+    let dest=(GEMELLA[t.type]||{})[c.id];
+    if(!dest || !byId(dest)){
+      // categoria personalizzata: creo la gemella conservando nome e colore
+      const gid=c.id+(t.type==='entrata'?'_in':'_out');
+      if(!byId(gid)) state.categorie.push({id:gid,label:c.label,color:c.color,tipo:t.type});
+      dest=gid;
+    }
+    t.cat=dest; spostate++;
+  });
+  state.catStrictV1=true;
+  CATEGORIES=state.categorie;
+  saveState();
+  if(spostate) setTimeout(()=>toast(spostate+' movimenti riclassificati automaticamente','ok'),1000);
 }
 let selectedCat='cibo', selectedType='uscita', selectedDebitoType='attivo';
 let exportTab='mensile', editingTxId=null, editingInvId=null, editingObId=null, editingContoId=null;
 let aiResultData=null, aiImageBase64=null, aiImageMime='image/jpeg';
 let currentPage='dashboard';
 let askResolve=null;
+
+/** ID progressivo garantito univoco: niente decimali, così sopravvive
+ *  al viaggio verso Google Fogli e ritorno. */
+let _lastId=0;
+function nextId(){
+  const now=Date.now();
+  _lastId = now>_lastId ? now : _lastId+1;
+  return _lastId;
+}
 
 function saveState(){
   try{
@@ -1485,7 +1561,7 @@ function saveTransaction(){
     if(contoId){const c=state.conti.find(c=>c.id===contoId);if(c)c.saldo+=selectedType==='entrata'?amount:-amount;}
     editingTxId=null;
   } else {
-    state.transactions.push({id:Date.now(),amount,desc,cat:selectedCat,type:selectedType,date:date||new Date().toISOString().split('T')[0],contoId,tag});
+    state.transactions.push({id:nextId(),amount,desc,cat:selectedCat,type:selectedType,date:date||new Date().toISOString().split('T')[0],contoId,tag});
     if(contoId){const c=state.conti.find(c=>c.id===contoId);if(c)c.saldo+=selectedType==='entrata'?amount:-amount;}
   }
   snapshotPatrimonio();saveState();closeModal('addModal');renderAll();scheduleSync();
@@ -1711,7 +1787,7 @@ function normalizzaScontrino(p){
     .map(a=>({
       nome: String(a.nome||'').slice(0,34).trim()||'Articolo',
       prezzo: Math.round(num(a.prezzo)*100)/100,
-      cat: CATEGORIES.find(c=>c.id===a.categoria) ? a.categoria : null
+      cat: catsPerTipo('uscita').some(c=>c.id===a.categoria) ? a.categoria : null
     }))
     .filter(a=>a.prezzo>0)
     .slice(0,40);
@@ -1968,7 +2044,7 @@ function salvaSplit(){
   const conto=contoId?state.conti.find(c=>c.id===contoId):null;
   gruppi.forEach((g,k)=>{
     state.transactions.push({
-      id: Date.now()+k+Math.random(),
+      id: nextId(),
       amount: g.importo,
       desc, cat: g.cat, type:'uscita',
       date: date||new Date().toISOString().split('T')[0],
@@ -2099,7 +2175,7 @@ function saveInvestment(){
     editingInvId=null;
   } else {
     const contoId=parseInt(document.getElementById('invest-conto')?.value)||null;
-    state.investments.push({id:Date.now(),name,isin,qty,price,current,type,contoId});
+    state.investments.push({id:nextId(),name,isin,qty,price,current,type,contoId});
     // Sottrai il costo dal conto selezionato
     if(contoId){
       const conto=state.conti.find(c=>c.id===contoId);
@@ -2154,7 +2230,7 @@ function saveConto(){
     editingContoId=null;
     toast(`Conto "${name}" aggiornato`,'ok');
   } else {
-    state.conti.push({id:Date.now(),name,type,saldo});
+    state.conti.push({id:nextId(),name,type,saldo});
     toast(`Conto "${name}" aggiunto`,'ok');
   }
   snapshotPatrimonio();saveState();closeModal('contoModal');renderAll();scheduleSync();
@@ -2196,7 +2272,7 @@ function saveTrasferimento(){
   if(cDa.saldo<amount&&!confirm(`Saldo insufficiente su ${cDa.name}. Continuare?`))return;
   cDa.saldo-=amount;cA.saldo+=amount;
   if(!state.trasferimenti)state.trasferimenti=[];
-  state.trasferimenti.push({id:Date.now(),daId,aId,daNome:cDa.name,aNome:cA.name,amount,date,note:note||`${cDa.name} → ${cA.name}`});
+  state.trasferimenti.push({id:nextId(),daId,aId,daNome:cDa.name,aNome:cA.name,amount,date,note:note||`${cDa.name} → ${cA.name}`});
   snapshotPatrimonio();saveState();closeModal('trasferimentoModal');renderAll();scheduleSync();
   toast(`€${fmt(amount)} trasferiti a ${cA.name}`,'ok');
 }
@@ -2232,7 +2308,7 @@ function saveDebito(){
       conto.saldo+=selectedDebitoType==='attivo'?-amount:amount;
     }
   }
-  state.debiti.push({id:Date.now(),tipo:selectedDebitoType,persona,amount,motivo,contoId,scadenza,note,saldato:false,dataCreazione:new Date().toISOString().split('T')[0]});
+  state.debiti.push({id:nextId(),tipo:selectedDebitoType,persona,amount,motivo,contoId,scadenza,note,saldato:false,dataCreazione:new Date().toISOString().split('T')[0]});
   snapshotPatrimonio();saveState();closeModal('debitoModal');renderAll();scheduleSync();
   toast(selectedDebitoType==='attivo'?'Credito registrato':'Debito registrato','ok');
 }
@@ -2285,7 +2361,7 @@ function saveObiettivo(){
     if(ob)Object.assign(ob,{nome,target,current,scadenza,emoji});
     editingObId=null;
   } else {
-    state.obiettivi.push({id:Date.now(),nome,target,current,scadenza,emoji});
+    state.obiettivi.push({id:nextId(),nome,target,current,scadenza,emoji});
   }
   saveState();closeModal('obiettivoModal');renderAll();scheduleSync();
   toast('Obiettivo salvato','ok');
@@ -2347,7 +2423,7 @@ function buildSheetPayload(){
     })),
     settings: {
       budget: state.budget||0,
-      categorie: CATEGORIES.map(c=>({id:c.id,label:c.label,color:c.color})),
+      categorie: CATEGORIES.map(c=>({id:c.id,label:c.label,color:c.color,tipo:c.tipo||'uscita'})),
       tags: allTags()
     }
   };
@@ -2417,18 +2493,29 @@ async function pullFromSheet(){
   if(!confirm('Le transazioni del foglio sostituiranno quelle dell\'app.\n\nLe modifiche fatte qui e non ancora sincronizzate andranno perse. Continuare?')) return;
   try{
     const d=await sheetCall({action:'pull'});
-    const catByName={};
-    CATEGORIES.forEach(c=>{ catByName[c.label.replace(/^\S+\s/,'').toLowerCase()]=c.id; });
+    // Le categorie si cercano prima fra quelle del tipo giusto: due categorie
+    // possono avere lo stesso nome su lati opposti (es. "Regali").
+    const nome=c=>c.label.replace(/^\S+\s/,'').toLowerCase();
+    const perTipo={uscita:{},entrata:{}};
+    CATEGORIES.forEach(c=>{ perTipo[c.tipo==='entrata'?'entrata':'uscita'][nome(c)]=c.id; });
+    const risolviCat=(etichetta,tipo)=>{
+      const k=String(etichetta||'').toLowerCase();
+      const t=tipo==='entrata'?'entrata':'uscita';
+      return perTipo[t][k] || CATEGORIES.find(c=>c.id===k)?.id || catFallback(t);
+    };
     const contoByName={};
     state.conti.forEach(c=>{ contoByName[c.name.toLowerCase()]=c.id; });
 
-    state.transactions=(d.transactions||[]).map(t=>({
-      id:Number(t.id)||Date.now()+Math.random(),
-      date:t.date, type:t.type, desc:t.desc, amount:Number(t.amount)||0,
-      cat:catByName[String(t.category).toLowerCase()]||'altro',
-      contoId:contoByName[String(t.account).toLowerCase()]||null,
-      tag:(t.tags&&t.tags.length)?t.tags:null
-    }));
+    state.transactions=(d.transactions||[]).map(t=>{
+      const tipo = t.type==='entrata' ? 'entrata' : 'uscita';
+      return {
+        id:Number(t.id)||nextId(),
+        date:t.date, type:tipo, desc:t.desc, amount:Number(t.amount)||0,
+        cat:risolviCat(t.category, tipo),
+        contoId:contoByName[String(t.account).toLowerCase()]||null,
+        tag:(t.tags&&t.tags.length)?t.tags:null
+      };
+    });
     // registra eventuali tag nuovi arrivati dal foglio
     if(!state.tags) state.tags=[];
     state.transactions.flatMap(t=>txTags(t)).forEach(tg=>{
@@ -2615,7 +2702,9 @@ function eseguiCorrezione(file){
           if(!ds||!amt||isNaN(amt)||amt<=0) continue;
 
           const catOrig=String(row[iC]||'').trim();
-          const nuova=mappa[catOrig.toLowerCase()] || (tipo==='entrata'?'entrate':'altro');
+          let nuova=mappa[catOrig.toLowerCase()] || catFallback(tipo);
+          const co=CATEGORIES.find(c=>c.id===nuova);
+          if(!co || (co.tipo||'uscita')!==tipo) nuova=catFallback(tipo);
 
           const k=ds+'|'+Math.round(amt*100)+'|'+tipo;
           const cand=idx.get(k);
@@ -2738,19 +2827,23 @@ let editingCatId=null, catEmoji='💼', catColor='#94a3b8', catTipo='uscita';
 function renderCatMgr(){
   const el=document.getElementById('cat-mgr-list'); if(!el) return;
   syncCategories();
-  el.innerHTML=CATEGORIES.map(c=>{
+  const riga=c=>{
     const n=state.transactions.filter(t=>t.cat===c.id).length;
     const emoji=c.label.split(' ')[0];
     const nome=c.label.split(' ').slice(1).join(' ');
     return `<div class="mgr-row">
       <div class="mgr-swatch" style="background:${c.color}22;color:${c.color}">${emoji}</div>
-      <div class="mgr-name">${esc(nome)}<div class="mgr-count">${{uscita:'uscite',entrata:'entrate',entrambi:'uscite e entrate'}[c.tipo||'uscita']} · ${n} transazion${n===1?'e':'i'}</div></div>
+      <div class="mgr-name">${esc(nome)}<div class="mgr-count">${n} transazion${n===1?'e':'i'}</div></div>
       <div class="mgr-actions">
         <button class="action-btn" onclick="openCatEdit('${c.id}')">✏️</button>
         <button class="action-btn red" onclick="deleteCategoria('${c.id}')">✕</button>
       </div>
     </div>`;
-  }).join('');
+  };
+  const tit=t=>`<div class="section-title" style="padding:4px 0 8px">${t}</div>`;
+  el.innerHTML =
+    tit('Uscite')  + catsPerTipo('uscita').map(riga).join('') +
+    tit('Entrate') + catsPerTipo('entrata').map(riga).join('');
 }
 
 function openCatEdit(id){
@@ -2777,7 +2870,7 @@ function openCatEdit(id){
 }
 function setCatTipo(t){
   catTipo=t;
-  ['uscita','entrata','entrambi'].forEach(x=>{
+  ['uscita','entrata'].forEach(x=>{
     const b=document.getElementById('cat-tipo-'+x);
     if(b) b.classList.toggle('selected',x===t);
   });
@@ -2792,7 +2885,13 @@ function saveCategoria(){
   if(!nome) return toast('Inserisci un nome','err');
   if(editingCatId){
     const c=CATEGORIES.find(c=>c.id===editingCatId);
-    if(c){c.label=catEmoji+' '+nome;c.color=catColor;c.tipo=catTipo;}
+    if(c){
+      if(c.tipo!==catTipo){
+        const opposto=state.transactions.filter(t=>t.cat===c.id&&t.type!==catTipo).length;
+        if(opposto) return toast(`Impossibile: ${opposto} movimenti sono di tipo ${c.tipo==='entrata'?'entrata':'uscita'}`,'err');
+      }
+      c.label=catEmoji+' '+nome;c.color=catColor;c.tipo=catTipo;
+    }
   } else {
     const id=nome.toLowerCase().replace(/[^a-z0-9]/g,'_').slice(0,20)+'_'+Date.now().toString(36).slice(-4);
     state.categorie.push({id,label:catEmoji+' '+nome,color:catColor,tipo:catTipo});
@@ -2807,14 +2906,18 @@ function deleteCategoria(id){
   if(CATEGORIES.length<=1) return toast('Deve rimanere almeno una categoria','err');
   const n=state.transactions.filter(t=>t.cat===id).length;
   const msg=n>0
-    ? `${n} transazion${n===1?'e verrà spostata':'i verranno spostate'} in "Altro". Continuare?`
+    ? `${n} transazion${n===1?'e verrà spostata':'i verranno spostate'} nella categoria di riserva. Continuare?`
     : 'Eliminare questa categoria?';
   if(!confirm(msg)) return;
   // riassegna le transazioni
-  let fallback=CATEGORIES.find(c=>c.id==='altro'&&c.id!==id) || CATEGORIES.find(c=>c.id!==id);
-  state.transactions.forEach(t=>{if(t.cat===id) t.cat=fallback.id;});
+  const cat=CATEGORIES.find(c=>c.id===id);
+  const tipo=cat?.tipo||'uscita';
+  if(catsPerTipo(tipo).length<=1) return toast('Deve restare almeno una categoria di '+(tipo==='entrata'?'entrata':'uscita'),'err');
   state.categorie=CATEGORIES.filter(c=>c.id!==id);
-  saveState();renderAll();renderCatMgr();
+  CATEGORIES=state.categorie;
+  state.transactions.forEach(t=>{if(t.cat===id) t.cat=catFallback(t.type);});
+  saveState();renderAll();renderCatMgr();scheduleSync();
+  toast('Categoria eliminata','ok');
 }
 
 // ── GESTIONE TAG ──────────────────────────────────────────────
@@ -2978,7 +3081,20 @@ function clearSearch(){
   document.getElementById('tx-search').value='';
   renderSpese();
 }
+let txTypeFilter='';
+function setTxTypeFilter(t){
+  if(txTypeFilter===t) return;
+  txTypeFilter=t;
+  // una categoria del tipo opposto non ha senso: azzera il filtro categoria
+  const sel=document.getElementById('tx-filter-cat');
+  if(sel && sel.value){
+    const c=CATEGORIES.find(x=>x.id===sel.value);
+    if(t && c && (c.tipo||'uscita')!==t) sel.value='';
+  }
+  renderSpese();
+}
 function resetFilters(){
+  txTypeFilter='';
   document.getElementById('tx-search').value='';
   document.getElementById('tx-filter-cat').value='';
   document.getElementById('tx-filter-tag').value='';
@@ -3169,12 +3285,22 @@ function renderSpese(){
   // Se filtro tag attivo, cerca su TUTTE le transazioni (ignora filtro periodo)
   let txs=filterTag ? [...state.transactions] : periodTxs();
   if(search) txs=txs.filter(t=>t.desc.toLowerCase().includes(search)||txTags(t).join(' ').toLowerCase().includes(search));
+  if(txTypeFilter) txs=txs.filter(t=>t.type===txTypeFilter);
   if(filterCat) txs=txs.filter(t=>t.cat===filterCat);
   if(filterTag) txs=txs.filter(t=>txTags(t).includes(filterTag));
+  // Segmented control: stato visivo
+  document.querySelectorAll('#tx-type-seg button').forEach(b=>b.classList.toggle('on',(b.dataset.t||'')===txTypeFilter));
   if(filterTag) document.getElementById('spese-month-label').textContent=`🏷 Tag: ${esc(filterTag)}`;
   // Popola dropdown (rebuild tramite innerHTML)
   const fSel=document.getElementById('tx-filter-cat');
-  if(fSel) fSel.innerHTML='<option value="">Tutte le categorie</option>'+CATEGORIES.map(c=>`<option value="${c.id}"${filterCat===c.id?' selected':''}>${c.label.replace(/^.\s/,'')}</option>`).join('');
+  if(fSel){
+    const gruppo=(tipo,titolo)=>`<optgroup label="${titolo}">`+catsPerTipo(tipo).map(c=>
+      `<option value="${c.id}"${filterCat===c.id?' selected':''}>${c.label.replace(/^.\s/,'')}</option>`).join('')+'</optgroup>';
+    fSel.innerHTML='<option value="">Tutte le categorie</option>'+
+      (txTypeFilter==='entrata' ? gruppo('entrata','Entrate')
+       : txTypeFilter==='uscita' ? gruppo('uscita','Uscite')
+       : gruppo('uscita','Uscite')+gruppo('entrata','Entrate'));
+  }
   const tSel=document.getElementById('tx-filter-tag');
   const allTagsList=[...new Set(state.transactions.flatMap(t=>txTags(t)))].sort((a,b)=>a.localeCompare(b,'it'));
   if(tSel) tSel.innerHTML='<option value="">Tutti i tag</option>'+allTagsList.map(t=>`<option value="${esc(t)}"${filterTag===t?' selected':''}>${esc(t)}</option>`).join('');
@@ -3191,17 +3317,22 @@ function renderSpese(){
     chipTag.style.display=allTagsList.length?'inline-flex':'none';
   }
   const rst=document.getElementById('filter-reset');
-  if(rst) rst.style.display=(filterCat||filterTag||search)?'block':'none';
+  if(rst) rst.style.display=(filterCat||filterTag||search||txTypeFilter)?'block':'none';
   const clr=document.getElementById('tx-search-clear');
   if(clr) clr.style.display=search?'block':'none';
   const uscite=txs.filter(t=>t.type==='uscita');
   const totUsc=uscite.reduce((s,t)=>s+t.amount,0);
   const totEnt=txs.filter(t=>t.type==='entrata').reduce((s,t)=>s+t.amount,0);
-  document.getElementById('spese-total-label').innerHTML=`<span class="hide-val">€${fmt(totUsc)}</span> uscite · <span class="hide-val">€${fmt(totEnt)}</span> entrate`;
+  document.getElementById('spese-total-label').innerHTML =
+    txTypeFilter==='uscita'  ? `<span class="hide-val">€${fmt(totUsc)}</span> di uscite`
+  : txTypeFilter==='entrata' ? `<span class="hide-val">€${fmt(totEnt)}</span> di entrate`
+  : `<span class="hide-val">€${fmt(totUsc)}</span> uscite · <span class="hide-val">€${fmt(totEnt)}</span> entrate`;
   // Budget bar: ha senso solo in modalità mese
   const budgetWrap=document.querySelector('.budget-bar-wrap');
   if(budgetWrap) budgetWrap.style.display=vm==='settimana'?'none':'block';
-  if(state.budget&&vm==='mese'){const pct=Math.min((totUsc/state.budget)*100,100);const fill=document.getElementById('budget-bar-fill');fill.style.width=pct+'%';fill.className='budget-bar-fill '+(pct<70?'bar-ok':pct<90?'bar-warn':'bar-over');document.getElementById('budget-bar-left').innerHTML=`<span class="hide-val">€${fmt(totUsc)}</span> di <span class="hide-val">€${fmt(state.budget)}</span>`;document.getElementById('budget-bar-right').textContent=pct.toFixed(0)+'%';}
+  // La barra del budget guarda sempre le uscite del periodo, indipendentemente dai filtri
+  const budgetUsc=periodTxs().filter(t=>t.type==='uscita').reduce((a,t)=>a+t.amount,0);
+  if(state.budget&&vm==='mese'){const totUsc=budgetUsc;const pct=Math.min((totUsc/state.budget)*100,100);const fill=document.getElementById('budget-bar-fill');fill.style.width=pct+'%';fill.className='budget-bar-fill '+(pct<70?'bar-ok':pct<90?'bar-warn':'bar-over');document.getElementById('budget-bar-left').innerHTML=`<span class="hide-val">€${fmt(totUsc)}</span> di <span class="hide-val">€${fmt(state.budget)}</span>`;document.getElementById('budget-bar-right').textContent=pct.toFixed(0)+'%';}
   else if(vm==='mese'){document.getElementById('budget-bar-left').textContent='Budget non impostato';document.getElementById('budget-bar-right').textContent='';document.getElementById('budget-bar-fill').style.width='0%';}
   // ── CONFRONTO PERIODO PRECEDENTE ──
   const confWrap=document.getElementById('confronto-wrap');
@@ -3260,10 +3391,16 @@ function renderSpese(){
   } else {
     confWrap.style.display='none';
   }
-  const catT={};uscite.forEach(t=>{catT[t.cat]=(catT[t.cat]||0)+t.amount;});
+  // Ripartizione per categoria: segue il tipo selezionato nel segmented control
+  const gridTipo = txTypeFilter==='entrata' ? 'entrata' : 'uscita';
+  const gridTxs  = txs.filter(t=>t.type===gridTipo);
+  const gridTot  = gridTxs.reduce((s,t)=>s+t.amount,0);
+  const gt=document.getElementById('cat-grid-title');
+  if(gt) gt.textContent = gridTipo==='entrata' ? 'Entrate per categoria' : 'Uscite per categoria';
+  const catT={};gridTxs.forEach(t=>{catT[t.cat]=(catT[t.cat]||0)+t.amount;});
   const cg=document.getElementById('cat-grid');
-  if(!Object.keys(catT).length){cg.innerHTML='<div style="grid-column:1/-1"><div class="empty"><div class="empty-text">Nessuna spesa</div></div></div>';}
-  else{cg.innerHTML=Object.entries(catT).sort((a,b)=>b[1]-a[1]).map(([catId,amt])=>{const cat=CATEGORIES.find(c=>c.id===catId);const pct=totUsc>0?((amt/totUsc)*100).toFixed(0):0;return`<div class="cat-card"><div class="cat-top"><div class="cat-icon">${(cat?.label||'💼').split(' ')[0]}</div><div class="cat-pct">${pct}%</div></div><div class="cat-name">${(cat?.label||'Altro').split(' ').slice(1).join(' ')}</div><div class="cat-amount hide-val">€${fmt(amt)}</div><div class="cat-bar"><div class="cat-bar-fill" style="width:${pct}%;background:${cat?.color||'#3b82f6'}"></div></div></div>`;}).join('');}
+  if(!Object.keys(catT).length){cg.innerHTML=`<div style="grid-column:1/-1"><div class="empty"><div class="empty-text">Nessun${gridTipo==='entrata'?'a entrata':'a spesa'}</div></div></div>`;}
+  else{cg.innerHTML=Object.entries(catT).sort((a,b)=>b[1]-a[1]).map(([catId,amt])=>{const cat=CATEGORIES.find(c=>c.id===catId);const pct=gridTot>0?((amt/gridTot)*100).toFixed(0):0;return`<div class="cat-card"><div class="cat-top"><div class="cat-icon">${(cat?.label||'💼').split(' ')[0]}</div><div class="cat-pct">${pct}%</div></div><div class="cat-name">${(cat?.label||'Altro').split(' ').slice(1).join(' ')}</div><div class="cat-amount hide-val">€${fmt(amt)}</div><div class="cat-bar"><div class="cat-bar-fill" style="width:${pct}%;background:${cat?.color||'#3b82f6'}"></div></div></div>`;}).join('');}
   const allS=[...txs].sort((a,b)=>new Date(b.date)-new Date(a.date));
   const tEl=document.getElementById('tx-list-full');
   if(!allS.length){
@@ -3731,9 +3868,10 @@ const BF_CAT_MAP_ENTRATE={
   'interessi':'interessi','trade republic':'interessi',
   'crédit agricole italia':'interessi','credit agricole italia':'interessi',
   'rimborso':'rimborsi','rimborsi':'rimborsi','reso':'rimborsi',
-  'prestiti':'prestiti','prestito':'prestiti',
-  'regalo':'regali','regali':'regali',
-  'altro':'entrate','vendita':'entrate',
+  'prestiti':'prestiti_in','prestito':'prestiti_in','restituzione':'prestiti_in',
+  'regalo':'regali_in','regali':'regali_in',
+  'finanze':'interessi','banca':'interessi','dividendi':'interessi',
+  'altro':'entrate','vendita':'entrate','entrate':'entrate',
 };
 
 const BF_CAT_MAP={
@@ -3761,7 +3899,7 @@ const BF_CAT_MAP={
   'prestiti':'prestiti','prestito':'prestiti',
   'trade republic':'finanze','crédit agricole italia':'finanze','credit agricole italia':'finanze',
   'commissioni':'finanze','banca':'finanze','investimenti':'finanze',
-  'borsa di studio':'borsa','stipendio':'stipendio','rimborso':'rimborsi','rimborsi':'rimborsi','interessi':'interessi','genitori':'famiglia','famiglia':'famiglia',
+  'interessi':'finanze','genitori':'altro','famiglia':'altro',
   'beneficenza':'altro','multe':'altro','altro':'altro',
 };
 function handleImportBF(e){const file=e.target.files[0];if(!file)return;if(!window.XLSX){const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';s.onload=()=>parseBFFile(file);s.onerror=()=>toast('Errore di rete: riprova','err');document.head.appendChild(s);}else parseBFFile(file);e.target.value='';}
@@ -3791,12 +3929,15 @@ function parseBFFile(file){
           const amount=parseFloat(row[iA]);if(!amount||isNaN(amount)||amount<=0){skipped++;continue;}
           const catRaw=String(row[iC]||'').toLowerCase().trim();
           const mappa = defType==='entrata' ? BF_CAT_MAP_ENTRATE : BF_CAT_MAP;
-          const cat=mappa[catRaw]||(defType==='entrata'?'entrate':'altro');
+          let cat=mappa[catRaw]||catFallback(defType);
+          // Rete di sicurezza: mai una categoria del lato sbagliato
+          const catObj=CATEGORIES.find(c=>c.id===cat);
+          if(!catObj || (catObj.tipo||'uscita')!==defType) cat=catFallback(defType);
           const desc=String(row[iCo]||row[iC]||'Importato').trim()||'Importato';
           const tagRaw=iTag>=0?String(row[iTag]||'').trim():'';
           const tag=tagRaw?tagRaw.split(',').map(x=>x.trim()).filter(Boolean):null;
           if(state.transactions.some(t=>t.date===ds&&Math.abs(t.amount-amount)<0.01&&t.desc===desc)){skipped++;continue;}
-          state.transactions.push({id:Date.now()+Math.random(),amount,desc,cat,type:defType,date:ds,contoId:null,tag});
+          state.transactions.push({id:nextId(),amount,desc,cat,type:defType,date:ds,contoId:null,tag});
           imported++;
         }
       };
@@ -3812,7 +3953,7 @@ function parseBFFile(file){
   reader.readAsArrayBuffer(file);
 }
 
-function resetData(){if(!confirm('Sei sicuro? Azione irreversibile.'))return;state={transactions:[],investments:[],conti:[],debiti:[],trasferimenti:[],obiettivi:[],budget:null,binanceKey:null,anthropicKey:null,patrimonioStorico:[],currentMonth:new Date().getMonth(),currentYear:new Date().getFullYear(),viewMode:'mese',currentWeekOffset:0,categorie:[...DEFAULT_CATEGORIES],tags:[],sheetUrl:null,sheetAuto:false,sheetLastSync:null,geminiModel:null};saveState();renderAll();}
+function resetData(){if(!confirm('Sei sicuro? Azione irreversibile.'))return;state={transactions:[],investments:[],conti:[],debiti:[],trasferimenti:[],obiettivi:[],budget:null,binanceKey:null,anthropicKey:null,patrimonioStorico:[],currentMonth:new Date().getMonth(),currentYear:new Date().getFullYear(),viewMode:'mese',currentWeekOffset:0,categorie:DEFAULT_CATEGORIES.map(c=>({...c})),catStrictV1:true,tags:[],sheetUrl:null,sheetAuto:false,sheetLastSync:null,geminiModel:null};saveState();renderAll();}
 
 // ── PRIVACY MODE ─────────────────────────────────────────────
 let privacyOn=false;
@@ -3849,23 +3990,27 @@ const CORS_PROXIES=[
 ];
 
 // Scarica un URL provando i proxy in sequenza. Ritorna il testo grezzo.
-async function proxyFetch(url, timeout=9000){
-  for(const mk of CORS_PROXIES){
+let proxyOk=0; // indice dell'ultimo proxy che ha risposto: si riparte da lì
+async function proxyFetch(url, timeout=7000){
+  const ordine=[...CORS_PROXIES.slice(proxyOk),...CORS_PROXIES.slice(0,proxyOk)];
+  for(let i=0;i<ordine.length;i++){
     try{
-      const r=await fetch(mk(url),{signal:AbortSignal.timeout(timeout)});
+      const r=await fetch(ordine[i](url),{signal:AbortSignal.timeout(timeout)});
       if(!r.ok) continue;
       const t=await r.text();
-      if(t && t.length>10) return t;
+      if(t && t.length>10){ proxyOk=(proxyOk+i)%CORS_PROXIES.length; return t; }
     }catch(e){}
   }
   return null;
 }
 
 // Fonte 1: Yahoo Finance — prova più borse automaticamente
-async function fetchYahoo(ticker){
+async function fetchYahoo(ticker, noto){
   const hasSuffix=/\.[A-Z]{1,2}$/i.test(ticker);
   const base=ticker.replace(/\.[A-Z]{1,2}$/i,'').toUpperCase();
-  const candidates = hasSuffix ? [ticker.toUpperCase()] : [`${base}.MI`,`${base}.AS`,`${base}.DE`,`${base}.L`,base];
+  let candidates = hasSuffix ? [ticker.toUpperCase()] : [`${base}.MI`,`${base}.AS`,`${base}.DE`,`${base}.L`,base];
+  // Se in passato una borsa ha risposto, si parte da quella: evita 4 tentativi a vuoto
+  if(noto) candidates=[noto,...candidates.filter(c=>c!==noto)];
   for(const t of candidates){
     const url=`https://query1.finance.yahoo.com/v8/finance/chart/${t}?interval=1d&range=1d`;
     const txt=await proxyFetch(url);
@@ -3935,61 +4080,86 @@ async function fetchJustETF(inv, refPrice){
   return {price:best, currency:'EUR', symbol:isin, source:'JustETF'};
 }
 
-let isRefreshing=false;
-async function _doRefresh(silent=false){
-  if(isRefreshing) return;
-  if(!state.investments?.length){if(!silent)toast('Nessun investimento da aggiornare');return;}
-  isRefreshing=true;
-  const btn=document.getElementById('refresh-btn');
-  if(btn) btn.classList.add('spinning');
-  let updated=0,failed=[];
+let isRefreshing=false, lastRefreshAt=0;
+const REFRESH_COOLDOWN=5*60*1000;   // aggiornamenti silenziosi: al massimo uno ogni 5 minuti
+const REFRESH_MAX_MS=30000;         // oltre questo tempo si smette comunque di girare
 
-  const cryptos=state.investments.filter(i=>i.type==='crypto');
-  const others=state.investments.filter(i=>i.type!=='crypto');
-
-  // ── Crypto via CoinGecko ──
-  if(cryptos.length){
-    try{
-      const ids=[...new Set(cryptos.map(i=>CRYPTO_IDS[i.name.split(/[\s\-–]/)[0].toUpperCase()]).filter(Boolean))];
-      if(ids.length){
-        const resp=await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${ids.join(',')}&vs_currencies=eur`,{signal:AbortSignal.timeout(8000)});
-        const prices=await resp.json();
-        cryptos.forEach(i=>{
-          const cgId=CRYPTO_IDS[i.name.split(/[\s\-–]/)[0].toUpperCase()];
-          if(cgId&&prices[cgId]?.eur){i.current=prices[cgId].eur;i.lastUpdate=new Date().toISOString();updated++;}
-          else if(!silent) failed.push(i.name);
-        });
-      }
-    }catch(e){if(!silent) cryptos.forEach(i=>failed.push(i.name));}
-  }
-
-  // ── ETF/Azioni: Yahoo (multi-borsa) → Stooq → JustETF ──
-  for(const inv of others){
-    const ticker=extractTicker(inv.name)||inv.name;
-    let res=await fetchYahoo(ticker);
+/** Aggiorna un singolo titolo. Non lancia mai: ritorna sempre un esito. */
+async function _updateOne(inv){
+  const ticker=extractTicker(inv.name)||inv.name;
+  try{
+    let res=await fetchYahoo(ticker, inv.resolvedSymbol);
     if(!res) res=await fetchStooq(ticker);
     if(!res && inv.isin) res=await fetchJustETF(inv, inv.current||inv.price);
-
-    // Guardia finale: uno scostamento oltre il 50% dal prezzo noto è quasi
-    // sempre un errore (borsa o valuta sbagliata), non un movimento reale.
-    const ref = inv.current || inv.price || 0;
-    const anomalo = res && ref>0 && (res.price < ref*0.5 || res.price > ref*1.5);
-
+    // Uno scostamento oltre il 50% dal prezzo noto è quasi sempre un errore
+    // (borsa o valuta sbagliata), non un movimento reale.
+    const ref=inv.current||inv.price||0;
+    const anomalo = res && ref>0 && (res.price<ref*0.5 || res.price>ref*1.5);
     if(res && res.price>0 && !anomalo){
       inv.current=res.price;
       inv.lastUpdate=new Date().toISOString();
       inv.currency=res.currency||'EUR';
       inv.priceSource=res.source;
       if(res.symbol) inv.resolvedSymbol=res.symbol;
-      updated++;
-    } else if(!silent){
-      failed.push(inv.name + (anomalo ? ` (scartato: ${res.price} ${res.currency||''} da ${res.source})` : ''));
+      return {ok:true};
     }
+    return {ok:false, nome:inv.name+(anomalo?` (scartato: ${res.price} ${res.currency||''} da ${res.source})`:'')};
+  }catch(e){
+    return {ok:false, nome:inv.name};
+  }
+}
+
+async function _doRefresh(silent=false){
+  if(isRefreshing) return;
+  if(!state.investments?.length){ if(!silent) toast('Nessun investimento da aggiornare'); return; }
+  // Gli aggiornamenti automatici non ripartono a ogni cambio pagina
+  if(silent && Date.now()-lastRefreshAt < REFRESH_COOLDOWN) return;
+
+  isRefreshing=true;
+  const btn=document.getElementById('refresh-btn');
+  if(btn) btn.classList.add('spinning');
+  // Rete di sicurezza: qualunque cosa accada, l'icona smette di girare
+  const stopSpin=setTimeout(()=>{ if(btn) btn.classList.remove('spinning'); }, REFRESH_MAX_MS);
+
+  let updated=0; const failed=[];
+  try{
+    const lavoro=(async()=>{
+      const cryptos=state.investments.filter(i=>i.type==='crypto');
+      const others =state.investments.filter(i=>i.type!=='crypto');
+
+      // ── Crypto: una sola chiamata a CoinGecko ──
+      if(cryptos.length){
+        try{
+          const ids=[...new Set(cryptos.map(i=>CRYPTO_IDS[i.name.split(/[\s\-–]/)[0].toUpperCase()]).filter(Boolean))];
+          if(ids.length){
+            const resp=await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${ids.join(',')}&vs_currencies=eur`,{signal:AbortSignal.timeout(8000)});
+            const prices=await resp.json();
+            cryptos.forEach(i=>{
+              const cgId=CRYPTO_IDS[i.name.split(/[\s\-–]/)[0].toUpperCase()];
+              if(cgId&&prices[cgId]?.eur){ i.current=prices[cgId].eur; i.lastUpdate=new Date().toISOString(); updated++; }
+              else failed.push(i.name);
+            });
+          }
+        }catch(e){ cryptos.forEach(i=>failed.push(i.name)); }
+      }
+
+      // ── ETF/Azioni in parallelo: prima erano in fila e l'attesa si sommava ──
+      const esiti=await Promise.all(others.map(_updateOne));
+      esiti.forEach(r=>{ if(r.ok) updated++; else failed.push(r.nome); });
+    })();
+
+    // Se la rete è lenta si esce comunque: meglio un aggiornamento parziale
+    await Promise.race([lavoro, new Promise(r=>setTimeout(r, REFRESH_MAX_MS))]);
+  }catch(e){
+    console.error('Aggiornamento prezzi:', e);
+  }finally{
+    clearTimeout(stopSpin);
+    if(btn) btn.classList.remove('spinning');
+    isRefreshing=false;
+    lastRefreshAt=Date.now();
   }
 
-  snapshotPatrimonio();saveState();renderAll();
-  if(btn) btn.classList.remove('spinning');
-  isRefreshing=false;
+  if(updated){ snapshotPatrimonio(); saveState(); renderAll(); }
 
   if(!silent){
     if(!failed.length){
@@ -4002,7 +4172,7 @@ async function _doRefresh(silent=false){
   }
 }
 
-function refreshPrices(){return _doRefresh(false);}
+function refreshPrices(){ lastRefreshAt=0; return _doRefresh(false); }
 function refreshPricesSilent(){return _doRefresh(true);}
 
 // ── AUTO-REFRESH intelligente ─────────────────────────────────
@@ -4015,7 +4185,7 @@ function startAutoRefresh(){
     if(document.visibilityState==='visible' && REFRESH_PAGES.includes(currentPage)){
       refreshPricesSilent();
     }
-  },60000);
+  },120000);
 }
 function stopAutoRefresh(){
   if(autoRefreshTimer){clearInterval(autoRefreshTimer);autoRefreshTimer=null;}
@@ -4150,6 +4320,7 @@ document.addEventListener('visibilitychange',()=>{
 // ── INIT ─────────────────────────────────────────────────────
 loadState();
 syncCategories();
+migrateCategorieStrict();
 migrateTags();
 state.currentMonth=new Date().getMonth();
 state.currentYear=new Date().getFullYear();
