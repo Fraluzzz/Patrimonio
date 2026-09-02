@@ -672,7 +672,7 @@ select.form-input{cursor:pointer}
 
   <div class="section" style="padding-bottom:24px">
     <div style="text-align:center;font-size:12px;color:var(--text3);line-height:1.7">
-      Patrimonio v6.10<br>
+      Patrimonio v6.11<br>
       I dati sono salvati solo su questo dispositivo
     </div>
   </div>
@@ -4231,7 +4231,7 @@ async function proxyFetch(url, timeout=7000){
       if(d && typeof d.body==='string' && d.body.length>10) return d.body;
     }catch(e){
       // Script vecchio o azione non riconosciuta: non riprovo per tutta la sessione
-      if(/azione|action|sconosciut|unknown/i.test(e.message||'')) sheetProxyKo=true;
+      if(/azione|action|sconosciut|unknown|permission|autorizz/i.test(e.message||'')) sheetProxyKo=true;
     }
   }
   return proxyFetchPubblico(url, timeout);
@@ -4474,15 +4474,33 @@ async function diagnosticaPrezzi(){
   // 1. Il tuo Apps Script fa da ponte?
   sheetProxyKo=false;
   let sheetEsito;
-  if(!state.sheetUrl) sheetEsito='<span style="color:var(--yellow)">nessun foglio collegato</span>';
-  else{
-    try{
-      const d=await sheetCall({action:'proxy', url:'https://query1.finance.yahoo.com/v8/finance/chart/AAPL?interval=1d&range=1d'}, 20000);
-      sheetEsito = (d && typeof d.body==='string' && d.body.length>10)
-        ? '<span style="color:var(--green)">attivo</span>'
-        : '<span style="color:var(--red)">risposta vuota</span>';
-    }catch(e){
-      sheetEsito='<span style="color:var(--red)">non supportato</span><div style="color:var(--text3);font-size:12px">Aggiungi l\'azione "proxy" allo script del foglio: è la soluzione più affidabile.</div>';
+  if(!state.sheetUrl){
+    sheetEsito='<span style="color:var(--yellow)">nessun foglio collegato</span>';
+  } else {
+    // 1a. Che versione dello script risponde davvero? Se non è la 5.7,
+    //     il codice è stato salvato ma non ridistribuito.
+    let ver='?';
+    try{ const p=await sheetCall({action:'ping'},20000); ver=p.version||'?'; }
+    catch(e){ ver='irraggiungibile'; }
+
+    if(ver!==SHEET_SCRIPT_VERSION){
+      sheetEsito=`<span style="color:var(--red)">script vecchio (versione ${esc(String(ver))})</span>
+        <div style="color:var(--text3);font-size:12px">Serve la ${SHEET_SCRIPT_VERSION}. Hai salvato il codice ma non ridistribuito:
+        Apps Script → Implementa → Gestisci implementazioni → matita → Versione: <b>Nuova versione</b> → Implementa.</div>`;
+    } else {
+      // 1b. Lo script è aggiornato: provo davvero a scaricare una pagina
+      try{
+        const d=await sheetCall({action:'proxy', url:'https://query1.finance.yahoo.com/v8/finance/chart/AAPL?interval=1d&range=1d'}, 25000);
+        sheetEsito = (d && typeof d.body==='string' && d.body.length>10)
+          ? '<span style="color:var(--green)">attivo</span>'
+          : '<span style="color:var(--red)">risposta vuota</span>';
+      }catch(e){
+        const msg=String(e.message||e);
+        const auth=/permission|autorizz|permessi|authoriz/i.test(msg);
+        sheetEsito=`<span style="color:var(--red)">errore</span>
+          <div style="color:var(--text3);font-size:12px">${esc(msg.slice(0,220))}</div>
+          ${auth?'<div style="color:var(--yellow);font-size:12px">Manca l\'autorizzazione a internet: nell\'editor Apps Script scegli la funzione <b>diagnostica</b>, premi Esegui e accetta i permessi.</div>':''}`;
+      }
     }
   }
   righe.push(`<div style="padding:8px 0;border-bottom:1px solid var(--border)"><strong>Ponte Apps Script</strong>: ${sheetEsito}</div>`);
