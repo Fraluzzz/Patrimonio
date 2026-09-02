@@ -618,6 +618,22 @@ select.form-input{cursor:pointer}
     </div>
   </div>
   <div class="section">
+    <div class="section-title">Prezzi investimenti</div>
+    <div class="set-group">
+      <button class="set-row" onclick="openModal('prezziModal')">
+        <span class="set-icon" style="background:rgba(56,189,248,.14);color:#38BDF8"><svg><use href="#i-trend"/></svg></span>
+        <span class="set-body"><span class="set-lbl">Fonte diretta (Twelve Data)</span><span class="set-sub" id="td-status">Non configurata</span></span>
+        <svg class="row-arrow"><use href="#i-chevron"/></svg>
+      </button>
+      <button class="set-row" onclick="diagnosticaPrezzi()">
+        <span class="set-icon" style="background:rgba(245,158,11,.14);color:var(--yellow)"><svg><use href="#i-search"/></svg></span>
+        <span class="set-body"><span class="set-lbl">Diagnostica aggiornamento</span><span class="set-sub">Prova le fonti e mostra cosa risponde</span></span>
+        <svg class="row-arrow"><use href="#i-chevron"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="section">
     <div class="section-title">Dati</div>
     <div class="set-group">
       <button class="set-row" onclick="openModal('exportModal')">
@@ -656,7 +672,7 @@ select.form-input{cursor:pointer}
 
   <div class="section" style="padding-bottom:24px">
     <div style="text-align:center;font-size:12px;color:var(--text3);line-height:1.7">
-      Patrimonio v6.5<br>
+      Patrimonio v6.6<br>
       I dati sono salvati solo su questo dispositivo
     </div>
   </div>
@@ -882,6 +898,32 @@ select.form-input{cursor:pointer}
     <button class="btn-secondary" onclick="detailEdit()">Modifica</button>
     <button class="btn-danger" onclick="detailDelete()">Elimina investimento</button>
     <button class="btn-secondary" onclick="closeModal('investDetailModal')">Chiudi</button>
+  </div>
+</div>
+
+<!-- MODAL: FONTE PREZZI -->
+<div class="modal-overlay" id="prezziModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Fonte diretta dei prezzi</div>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.6">
+      Senza chiave, ETF e azioni passano da proxy pubblici gratuiti che spesso sono lenti o irraggiungibili: è la causa più comune dei prezzi che non si aggiornano.
+      Twelve Data risponde direttamente al browser. Il piano gratuito basta ampiamente (800 richieste al giorno).
+      Registrati su twelvedata.com, copia la chiave e incollala qui.
+    </p>
+    <div class="form-group"><label class="form-label">API KEY TWELVE DATA</label><input type="password" class="form-input" id="td-key" placeholder="Lascia vuoto per usare solo i proxy"></div>
+    <button class="btn-primary" onclick="salvaTdKey()">Salva</button>
+    <button class="btn-secondary" onclick="closeModal('prezziModal')">Annulla</button>
+  </div>
+</div>
+
+<!-- MODAL: DIAGNOSTICA PREZZI -->
+<div class="modal-overlay" id="diagModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Diagnostica prezzi</div>
+    <div id="diag-body" style="font-size:13px;line-height:1.6"></div>
+    <button class="btn-secondary" onclick="closeModal('diagModal')">Chiudi</button>
   </div>
 </div>
 
@@ -1212,7 +1254,7 @@ select.form-input{cursor:pointer}
 // ── STATE ─────────────────────────────────────────────────────
 let state = {
   transactions:[], investments:[], conti:[], debiti:[], trasferimenti:[], obiettivi:[],
-  budget:null, binanceKey:null, anthropicKey:null,
+  budget:null, binanceKey:null, anthropicKey:null, twelveKey:null,
   patrimonioStorico:[],
   currentMonth:new Date().getMonth(), currentYear:new Date().getFullYear(),
   viewMode:'mese', currentWeekOffset:0,
@@ -1329,21 +1371,30 @@ function migrateCategorieStrict(){
   });
   CATEGORIES=state.categorie;
   // 2. Le transazioni sul lato sbagliato passano alla gemella corrispondente
-  let spostate=0;
+  let spostate=0, daRivedere=0;
   state.transactions.forEach(t=>{
     const c=byId(t.cat);
     if(!c){ t.cat=catFallback(t.type); spostate++; return; }
     if((c.tipo||'uscita')===t.type) return;
     let dest=(GEMELLA[t.type]||{})[c.id];
     if(!dest || !byId(dest)){
-      // categoria personalizzata: creo la gemella conservando nome e colore
-      const gid=c.id+(t.type==='entrata'?'_in':'_out');
-      if(!byId(gid)) state.categorie.push({id:gid,label:c.label,color:c.color,tipo:t.type});
-      dest=gid;
+      if(DEFAULT_CATEGORIES.some(d=>d.id===c.id)){
+        // Categoria standard del lato opposto (es. un'entrata finita in "Istruzione"):
+        // non ha senso duplicarla, il movimento va nella categoria di riserva
+        // e resta da rivedere con "Riclassifica entrate".
+        dest=catFallback(t.type);
+        if(t.type==='entrata') daRivedere++;
+      } else {
+        // Categoria creata dall'utente: la gemella ha senso, conserva nome e colore
+        const gid=c.id+(t.type==='entrata'?'_in':'_out');
+        if(!byId(gid)) state.categorie.push({id:gid,label:c.label,color:c.color,tipo:t.type});
+        dest=gid;
+      }
     }
     t.cat=dest; spostate++;
   });
   state.catStrictV1=true;
+  if(daRivedere) state.entrateDaRivedere=(state.entrateDaRivedere||0)+daRivedere;
   CATEGORIES=state.categorie;
   saveState();
   if(spostate) setTimeout(()=>toast(spostate+' movimenti riclassificati automaticamente','ok'),1000);
@@ -1438,6 +1489,7 @@ function openModal(id){
   if(id==='tagMgrModal') renderTagMgr();
   if(id==='contoModal' && !editingContoId) initContoModal();
   if(id==='apiKeyModal') document.getElementById('anthropic-api-key').value=state.anthropicKey||'';
+  if(id==='prezziModal') document.getElementById('td-key').value=state.twelveKey||'';
   if(id==='obiettivoModal' && !editingObId) initObiettivoModal();
 }
 function closeModal(id){document.getElementById(id).classList.remove('open');}
@@ -2792,10 +2844,11 @@ function renderRiclassifica(){
   const idsValidi=new Set(valide.map(c=>c.id));
   const daSistemare=riclData.filter(g=>!idsValidi.has(g.cat)).length;
 
+  const tot=riclData.reduce((n,g)=>n+g.ids.length,0);
   document.getElementById('ricl-summary').innerHTML=
     daSistemare
       ? `<span style="color:var(--yellow)"><strong>${daSistemare}</strong> grupp${daSistemare===1?'o è':'i sono'} in una categoria di sola uscita.</span>`
-      : '<span style="color:var(--green)">Tutte le entrate sono in categorie corrette.</span>';
+      : `<span style="color:var(--text2)">${tot} entrate in ${riclData.length} grupp${riclData.length===1?'o':'i'}. Tocca un gruppo per cambiarne la categoria.</span>`;
 
   document.getElementById('ricl-list').innerHTML=riclData.map((g,i)=>{
     const c=CATEGORIES.find(x=>x.id===g.cat);
@@ -3560,6 +3613,43 @@ function openInvestDetail(id){
     <div class="detail-meta">Aggiornato: ${esc(upd)}${inv.priceSource?' · '+esc(inv.priceSource):''}</div>`;
   openModal('investDetailModal');
 }
+/** v6.6 — ripara il danno della v6.4/6.5: le gemelle create per categorie
+ *  standard di uscita (es. una "Istruzione" fra le entrate) non devono esistere.
+ *  I movimenti tornano in una categoria di entrata sensata e vanno rivisti. */
+function migrateCounterpartiSpurie(){
+  if(state.catCleanV1) return;
+  syncCategories();
+  const defIds=new Set(DEFAULT_CATEGORIES.map(c=>c.id));
+  // Unica corrispondenza certa: un'entrata registrata sotto "Istruzione"
+  // è quasi sempre una borsa di studio.
+  const RIPARA={istruzione:'borsa'};
+  let mosse=0;
+  state.categorie.filter(c=>c.id.endsWith('_in') && !defIds.has(c.id)).forEach(c=>{
+    const base=c.id.slice(0,-3);
+    if(!defIds.has(base)) return;                 // gemella di una categoria tua: la lascio
+    const dest=RIPARA[base]||'entrate';
+    state.transactions.forEach(t=>{ if(t.cat===c.id){ t.cat=dest; mosse++; } });
+    state.categorie=state.categorie.filter(x=>x.id!==c.id);
+  });
+  // Stessa pulizia sul lato uscite
+  state.categorie.filter(c=>c.id.endsWith('_out') && !defIds.has(c.id)).forEach(c=>{
+    const base=c.id.slice(0,-4);
+    if(base!=='famiglia' && !defIds.has(base)) return;
+    if(base==='famiglia') return;                 // "Famiglia" fra le uscite ha senso, resta
+    state.transactions.forEach(t=>{ if(t.cat===c.id){ t.cat='altro'; mosse++; } });
+    state.categorie=state.categorie.filter(x=>x.id!==c.id);
+  });
+  state.catCleanV1=true;
+  CATEGORIES=state.categorie;
+  if(mosse) state.entrateDaRivedere=(state.entrateDaRivedere||0)+mosse;
+  saveState();
+  // Una revisione manuale è d'obbligo: apro io lo strumento, una volta sola
+  if(state.entrateDaRivedere){
+    state.entrateDaRivedere=0; saveState();
+    setTimeout(()=>{ toast(mosse+' entrate da rivedere','err'); apriRiclassifica(); },1400);
+  }
+}
+
 /** Elenco dei versamenti fatti su un investimento, dal più recente */
 function storicoVersamenti(inv){
   const v=Array.isArray(inv.versamenti)?inv.versamenti:[];
@@ -3813,6 +3903,8 @@ function renderSettings(){
   if(tc){const n=allTags().length;tc.textContent=n?n+' tag':'Nessun tag';}
   const ak=document.getElementById('api-key-status');
   if(ak) ak.textContent=state.anthropicKey?'Configurata — scansione attiva':'Non configurata';
+  const td=document.getElementById('td-status');
+  if(td) td.textContent=state.twelveKey?'Configurata — fonte diretta attiva':'Non configurata — si usano i proxy';
   const ss=document.getElementById('sheet-status');
   if(ss){
     if(state.sheetUrl){
@@ -4062,7 +4154,7 @@ function parseBFFile(file){
   reader.readAsArrayBuffer(file);
 }
 
-function resetData(){if(!confirm('Sei sicuro? Azione irreversibile.'))return;state={transactions:[],investments:[],conti:[],debiti:[],trasferimenti:[],obiettivi:[],budget:null,binanceKey:null,anthropicKey:null,patrimonioStorico:[],currentMonth:new Date().getMonth(),currentYear:new Date().getFullYear(),viewMode:'mese',currentWeekOffset:0,categorie:DEFAULT_CATEGORIES.map(c=>({...c})),catStrictV1:true,tags:[],sheetUrl:null,sheetAuto:false,sheetLastSync:null,geminiModel:null};saveState();renderAll();}
+function resetData(){if(!confirm('Sei sicuro? Azione irreversibile.'))return;state={transactions:[],investments:[],conti:[],debiti:[],trasferimenti:[],obiettivi:[],budget:null,binanceKey:null,anthropicKey:null,twelveKey:null,patrimonioStorico:[],currentMonth:new Date().getMonth(),currentYear:new Date().getFullYear(),viewMode:'mese',currentWeekOffset:0,categorie:DEFAULT_CATEGORIES.map(c=>({...c})),catStrictV1:true,catCleanV1:true,tags:[],sheetUrl:null,sheetAuto:false,sheetLastSync:null,geminiModel:null};saveState();renderAll();}
 
 // ── PRIVACY MODE ─────────────────────────────────────────────
 let privacyOn=false;
@@ -4114,6 +4206,29 @@ async function proxyFetch(url, timeout=7000){
 }
 
 // Fonte 1: Yahoo Finance — prova più borse automaticamente
+// Fonte 0 (se configurata): Twelve Data — risponde direttamente al browser,
+// niente proxy di mezzo. È il modo più affidabile per ETF e azioni europee.
+async function fetchTwelveData(ticker){
+  if(!state.twelveKey) return null;
+  const base=ticker.replace(/\.[A-Z]{1,2}$/i,'').toUpperCase();
+  const suff=(ticker.match(/\.([A-Z]{1,2})$/i)||[])[1];
+  const BORSE={MI:'XMIL',AS:'XAMS',DE:'XETR',L:'XLON',PA:'XPAR',SW:'XSWX'};
+  const tentativi = suff && BORSE[suff.toUpperCase()]
+    ? [{symbol:base, mic_code:BORSE[suff.toUpperCase()]}, {symbol:base}]
+    : [{symbol:base, mic_code:'XETR'}, {symbol:base, mic_code:'XMIL'}, {symbol:base}];
+  for(const q of tentativi){
+    try{
+      const qs=new URLSearchParams({...q, apikey:state.twelveKey});
+      const r=await fetch(`https://api.twelvedata.com/quote?${qs}`,{signal:AbortSignal.timeout(8000)});
+      if(!r.ok) continue;
+      const d=await r.json();
+      const price=parseFloat(d?.close ?? d?.previous_close);
+      if(price>0) return {price, currency:d.currency||'EUR', symbol:ticker.toUpperCase(), source:'Twelve Data'};
+    }catch(e){}
+  }
+  return null;
+}
+
 async function fetchYahoo(ticker, noto){
   const hasSuffix=/\.[A-Z]{1,2}$/i.test(ticker);
   const base=ticker.replace(/\.[A-Z]{1,2}$/i,'').toUpperCase();
@@ -4191,13 +4306,14 @@ async function fetchJustETF(inv, refPrice){
 
 let isRefreshing=false, lastRefreshAt=0;
 const REFRESH_COOLDOWN=5*60*1000;   // aggiornamenti silenziosi: al massimo uno ogni 5 minuti
-const REFRESH_MAX_MS=30000;         // oltre questo tempo si smette comunque di girare
+const REFRESH_MAX_MS=45000;         // oltre questo tempo si smette comunque di girare
 
 /** Aggiorna un singolo titolo. Non lancia mai: ritorna sempre un esito. */
 async function _updateOne(inv){
   const ticker=extractTicker(inv.name)||inv.name;
   try{
-    let res=await fetchYahoo(ticker, inv.resolvedSymbol);
+    let res=await fetchTwelveData(inv.resolvedSymbol||ticker);
+    if(!res) res=await fetchYahoo(ticker, inv.resolvedSymbol);
     if(!res) res=await fetchStooq(ticker);
     if(!res && inv.isin) res=await fetchJustETF(inv, inv.current||inv.price);
     // Uno scostamento oltre il 50% dal prezzo noto è quasi sempre un errore
@@ -4252,9 +4368,16 @@ async function _doRefresh(silent=false){
         }catch(e){ cryptos.forEach(i=>failed.push(i.name)); }
       }
 
-      // ── ETF/Azioni in parallelo: prima erano in fila e l'attesa si sommava ──
-      const esiti=await Promise.all(others.map(_updateOne));
-      esiti.forEach(r=>{ if(r.ok) updated++; else failed.push(r.nome); });
+      // ── ETF/Azioni a due alla volta: in fila era lentissimo, tutti insieme
+      //    i proxy pubblici rispondono 429 e falliscono tutti ──
+      const coda=[...others];
+      const worker=async()=>{
+        while(coda.length){
+          const r=await _updateOne(coda.shift());
+          if(r.ok) updated++; else failed.push(r.nome);
+        }
+      };
+      await Promise.all([worker(),worker()]);
     })();
 
     // Se la rete è lenta si esce comunque: meglio un aggiornamento parziale
@@ -4282,6 +4405,62 @@ async function _doRefresh(silent=false){
 }
 
 function refreshPrices(){ lastRefreshAt=0; return _doRefresh(false); }
+
+// ── DIAGNOSTICA: prova le fonti una per una e racconta cosa risponde ──
+function salvaTdKey(){
+  state.twelveKey=document.getElementById('td-key').value.trim()||null;
+  saveState(); closeModal('prezziModal'); renderSettings();
+  toast(state.twelveKey?'Chiave salvata — riprova l\'aggiornamento':'Chiave rimossa','ok');
+}
+
+async function diagnosticaPrezzi(){
+  const body=document.getElementById('diag-body');
+  openModal('diagModal');
+  const others=(state.investments||[]).filter(i=>i.type!=='crypto');
+  if(!others.length){ body.innerHTML='<p style="color:var(--text2)">Nessun ETF o azione da controllare.</p>'; return; }
+
+  body.innerHTML='<p style="color:var(--text2)">Controllo in corso, può richiedere un minuto…</p>';
+  const righe=[];
+
+  // 1. I proxy pubblici rispondono?
+  const proxyVivi=[];
+  for(let i=0;i<CORS_PROXIES.length;i++){
+    try{
+      const r=await fetch(CORS_PROXIES[i]('https://example.com'),{signal:AbortSignal.timeout(6000)});
+      if(r.ok) proxyVivi.push(i+1);
+    }catch(e){}
+  }
+  righe.push(`<div style="padding:8px 0;border-bottom:1px solid var(--border)">
+    <strong>Proxy raggiungibili</strong>: ${proxyVivi.length}/${CORS_PROXIES.length}${proxyVivi.length?' (n. '+proxyVivi.join(', ')+')':''}
+    ${proxyVivi.length?'':'<div style="color:var(--red);font-size:12px">Nessun proxy risponde: senza una chiave Twelve Data l\'aggiornamento non può funzionare.</div>'}
+  </div>`);
+  righe.push(`<div style="padding:8px 0;border-bottom:1px solid var(--border)">
+    <strong>Twelve Data</strong>: ${state.twelveKey?'chiave configurata':'<span style="color:var(--yellow)">non configurata</span>'}
+  </div>`);
+
+  // 2. Fonte per fonte, titolo per titolo
+  for(const inv of others.slice(0,8)){
+    const ticker=extractTicker(inv.name)||inv.name;
+    const esiti=[];
+    const td=await fetchTwelveData(inv.resolvedSymbol||ticker);
+    esiti.push(`Twelve Data: ${td?'€'+fmt(td.price)+' '+(td.currency||''):(state.twelveKey?'nessun dato':'saltata')}`);
+    const yh=await fetchYahoo(ticker, inv.resolvedSymbol);
+    esiti.push(`Yahoo: ${yh?'€'+fmt(yh.price)+' ('+yh.symbol+', '+(yh.currency||'')+')':'nessun dato'}`);
+    let st=null; if(!yh) st=await fetchStooq(ticker);
+    esiti.push(`Stooq: ${st?'€'+fmt(st.price):(yh?'non provata':'nessun dato')}`);
+    let je=null; if(!yh && !st && inv.isin) je=await fetchJustETF(inv, inv.current||inv.price);
+    esiti.push(`JustETF: ${je?'€'+fmt(je.price):(inv.isin?(yh||st?'non provata':'nessun dato'):'ISIN mancante')}`);
+    const vinto=td||yh||st||je;
+    righe.push(`<div style="padding:10px 0;border-bottom:1px solid var(--border)">
+      <div style="font-weight:600">${esc(inv.name)} ${vinto?'✅':'❌'}</div>
+      <div style="color:var(--text3);font-size:12px">ticker usato: ${esc(ticker)}${inv.resolvedSymbol?' · noto: '+esc(inv.resolvedSymbol):''}${inv.isin?' · ISIN '+esc(inv.isin):''}</div>
+      <div style="color:var(--text2);font-size:12px;margin-top:4px">${esiti.map(esc).join('<br>')}</div>
+      <div style="color:var(--text3);font-size:12px;margin-top:4px">valore in app: €${fmt(inv.current)}</div>
+    </div>`);
+  }
+  if(others.length>8) righe.push('<div style="color:var(--text3);font-size:12px;padding-top:8px">Controllati i primi 8 titoli.</div>');
+  body.innerHTML=righe.join('');
+}
 function refreshPricesSilent(){return _doRefresh(true);}
 
 // ── AUTO-REFRESH intelligente ─────────────────────────────────
@@ -4430,6 +4609,7 @@ document.addEventListener('visibilitychange',()=>{
 loadState();
 syncCategories();
 migrateCategorieStrict();
+migrateCounterpartiSpurie();
 migrateTags();
 state.currentMonth=new Date().getMonth();
 state.currentYear=new Date().getFullYear();
