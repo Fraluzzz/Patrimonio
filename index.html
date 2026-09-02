@@ -622,7 +622,7 @@ select.form-input{cursor:pointer}
     <div class="set-group">
       <button class="set-row" onclick="openModal('prezziModal')">
         <span class="set-icon" style="background:rgba(56,189,248,.14);color:#38BDF8"><svg><use href="#i-trend"/></svg></span>
-        <span class="set-body"><span class="set-lbl">Fonte diretta (Twelve Data)</span><span class="set-sub" id="td-status">Non configurata</span></span>
+        <span class="set-body"><span class="set-lbl">Twelve Data (solo mercati USA)</span><span class="set-sub" id="td-status">Non configurata</span></span>
         <svg class="row-arrow"><use href="#i-chevron"/></svg>
       </button>
       <button class="set-row" onclick="diagnosticaPrezzi()">
@@ -672,7 +672,7 @@ select.form-input{cursor:pointer}
 
   <div class="section" style="padding-bottom:24px">
     <div style="text-align:center;font-size:12px;color:var(--text3);line-height:1.7">
-      Patrimonio v6.8<br>
+      Patrimonio v6.10<br>
       I dati sono salvati solo su questo dispositivo
     </div>
   </div>
@@ -923,9 +923,9 @@ select.form-input{cursor:pointer}
     <div class="modal-handle"></div>
     <div class="modal-title">Fonte diretta dei prezzi</div>
     <p style="font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.6">
-      Senza chiave, ETF e azioni passano da proxy pubblici gratuiti che spesso sono lenti o irraggiungibili: è la causa più comune dei prezzi che non si aggiornano.
-      Twelve Data risponde direttamente al browser. Il piano gratuito basta ampiamente (800 richieste al giorno).
-      Registrati su twelvedata.com, copia la chiave e incollala qui.
+      Utile solo per titoli e ETF quotati negli Stati Uniti: il piano gratuito non copre Borsa Italiana, Xetra e le altre borse europee.
+      Per gli ETF europei serve il ponte Apps Script del tuo foglio Google, che non ha questo limite.
+      Se ne hai una, incolla qui la chiave: verrà provata per prima sui titoli americani.
     </p>
     <div class="form-group"><label class="form-label">API KEY TWELVE DATA</label><input type="password" class="form-input" id="td-key" placeholder="Lascia vuoto per usare solo i proxy"></div>
     <button class="btn-primary" onclick="salvaTdKey()">Salva</button>
@@ -2553,7 +2553,7 @@ async function sheetCall(payload, timeoutMs){
   return d;
 }
 
-const SHEET_SCRIPT_VERSION='5.6';
+const SHEET_SCRIPT_VERSION='5.7';
 
 async function syncToSheet(silent){
   if(syncing) return;
@@ -4220,8 +4220,24 @@ const CORS_PROXIES=[
 ];
 
 // Scarica un URL provando i proxy in sequenza. Ritorna il testo grezzo.
-let proxyOk=0; // indice dell'ultimo proxy che ha risposto: si riparte da lì
+let proxyOk=0;            // indice dell'ultimo proxy pubblico che ha risposto
+let sheetProxyKo=false;   // il tuo Apps Script non supporta ancora action:'proxy'
 async function proxyFetch(url, timeout=7000){
+  // Fonte migliore: il tuo Web App di Google Apps Script. È tuo, gira sui server
+  // di Google, non ha limiti di traffico e non sparisce come i proxy pubblici.
+  if(state.sheetUrl && !sheetProxyKo){
+    try{
+      const d=await sheetCall({action:'proxy', url}, timeout+5000);
+      if(d && typeof d.body==='string' && d.body.length>10) return d.body;
+    }catch(e){
+      // Script vecchio o azione non riconosciuta: non riprovo per tutta la sessione
+      if(/azione|action|sconosciut|unknown/i.test(e.message||'')) sheetProxyKo=true;
+    }
+  }
+  return proxyFetchPubblico(url, timeout);
+}
+
+async function proxyFetchPubblico(url, timeout=7000){
   const ordine=[...CORS_PROXIES.slice(proxyOk),...CORS_PROXIES.slice(0,proxyOk)];
   for(let i=0;i<ordine.length;i++){
     try{
@@ -4237,7 +4253,9 @@ async function proxyFetch(url, timeout=7000){
 // Fonte 1: Yahoo Finance — prova più borse automaticamente
 // Fonte 0 (se configurata): Twelve Data — risponde direttamente al browser,
 // niente proxy di mezzo. È il modo più affidabile per ETF e azioni europee.
+let tdUltimoErrore='';
 async function fetchTwelveData(ticker){
+  tdUltimoErrore='';
   if(!state.twelveKey) return null;
   const base=ticker.replace(/\.[A-Z]{1,2}$/i,'').toUpperCase();
   const suff=(ticker.match(/\.([A-Z]{1,2})$/i)||[])[1];
@@ -4249,11 +4267,13 @@ async function fetchTwelveData(ticker){
     try{
       const qs=new URLSearchParams({...q, apikey:state.twelveKey});
       const r=await fetch(`https://api.twelvedata.com/quote?${qs}`,{signal:AbortSignal.timeout(8000)});
-      if(!r.ok) continue;
-      const d=await r.json();
+      const d=await r.json().catch(()=>null);
+      if(d && (d.code||d.status==='error')){ tdUltimoErrore=(d.message||'errore '+d.code).slice(0,160); continue; }
+      if(!r.ok){ tdUltimoErrore='HTTP '+r.status; continue; }
       const price=parseFloat(d?.close ?? d?.previous_close);
       if(price>0) return {price, currency:d.currency||'EUR', symbol:ticker.toUpperCase(), source:'Twelve Data'};
-    }catch(e){}
+      if(d) tdUltimoErrore='risposta senza prezzo';
+    }catch(e){ tdUltimoErrore=e.name==='TimeoutError'?'timeout':(e.message||'errore di rete').slice(0,120); }
   }
   return null;
 }
@@ -4433,7 +4453,7 @@ async function _doRefresh(silent=false){
   }
 }
 
-function refreshPrices(){ lastRefreshAt=0; return _doRefresh(false); }
+function refreshPrices(){ lastRefreshAt=0; sheetProxyKo=false; return _doRefresh(false); }
 
 // ── DIAGNOSTICA: prova le fonti una per una e racconta cosa risponde ──
 function salvaTdKey(){
@@ -4451,7 +4471,23 @@ async function diagnosticaPrezzi(){
   body.innerHTML='<p style="color:var(--text2)">Controllo in corso, può richiedere un minuto…</p>';
   const righe=[];
 
-  // 1. I proxy pubblici rispondono?
+  // 1. Il tuo Apps Script fa da ponte?
+  sheetProxyKo=false;
+  let sheetEsito;
+  if(!state.sheetUrl) sheetEsito='<span style="color:var(--yellow)">nessun foglio collegato</span>';
+  else{
+    try{
+      const d=await sheetCall({action:'proxy', url:'https://query1.finance.yahoo.com/v8/finance/chart/AAPL?interval=1d&range=1d'}, 20000);
+      sheetEsito = (d && typeof d.body==='string' && d.body.length>10)
+        ? '<span style="color:var(--green)">attivo</span>'
+        : '<span style="color:var(--red)">risposta vuota</span>';
+    }catch(e){
+      sheetEsito='<span style="color:var(--red)">non supportato</span><div style="color:var(--text3);font-size:12px">Aggiungi l\'azione "proxy" allo script del foglio: è la soluzione più affidabile.</div>';
+    }
+  }
+  righe.push(`<div style="padding:8px 0;border-bottom:1px solid var(--border)"><strong>Ponte Apps Script</strong>: ${sheetEsito}</div>`);
+
+  // 2. I proxy pubblici rispondono?
   const proxyVivi=[];
   for(let i=0;i<CORS_PROXIES.length;i++){
     try{
@@ -4460,11 +4496,12 @@ async function diagnosticaPrezzi(){
     }catch(e){}
   }
   righe.push(`<div style="padding:8px 0;border-bottom:1px solid var(--border)">
-    <strong>Proxy raggiungibili</strong>: ${proxyVivi.length}/${CORS_PROXIES.length}${proxyVivi.length?' (n. '+proxyVivi.join(', ')+')':''}
-    ${proxyVivi.length?'':'<div style="color:var(--red);font-size:12px">Nessun proxy risponde: senza una chiave Twelve Data l\'aggiornamento non può funzionare.</div>'}
+    <strong>Proxy pubblici</strong>: ${proxyVivi.length}/${CORS_PROXIES.length}${proxyVivi.length?' (n. '+proxyVivi.join(', ')+')':''}
+    ${proxyVivi.length?'':'<div style="color:var(--text3);font-size:12px">Sono gratuiti e spesso offline: usa il ponte Apps Script.</div>'}
   </div>`);
   righe.push(`<div style="padding:8px 0;border-bottom:1px solid var(--border)">
-    <strong>Twelve Data</strong>: ${state.twelveKey?'chiave configurata':'<span style="color:var(--yellow)">non configurata</span>'}
+    <strong>Twelve Data</strong>: ${state.twelveKey?'chiave configurata':'<span style="color:var(--text3)">non configurata</span>'}
+    <div style="color:var(--text3);font-size:12px">Il piano gratuito copre solo mercati USA, forex e crypto: le borse europee no.</div>
   </div>`);
 
   // 2. Fonte per fonte, titolo per titolo
@@ -4472,7 +4509,7 @@ async function diagnosticaPrezzi(){
     const ticker=extractTicker(inv.name)||inv.name;
     const esiti=[];
     const td=await fetchTwelveData(inv.resolvedSymbol||ticker);
-    esiti.push(`Twelve Data: ${td?'€'+fmt(td.price)+' '+(td.currency||''):(state.twelveKey?'nessun dato':'saltata')}`);
+    esiti.push(`Twelve Data: ${td?'€'+fmt(td.price)+' '+(td.currency||''):(state.twelveKey?(tdUltimoErrore||'nessun dato'):'saltata')}`);
     const yh=await fetchYahoo(ticker, inv.resolvedSymbol);
     esiti.push(`Yahoo: ${yh?'€'+fmt(yh.price)+' ('+yh.symbol+', '+(yh.currency||'')+')':'nessun dato'}`);
     let st=null; if(!yh) st=await fetchStooq(ticker);
