@@ -560,7 +560,7 @@ select.form-input{cursor:pointer}
       </button>
       <button class="set-row" onclick="avviaCorrezioneCategorie()">
         <span class="set-icon" style="background:rgba(59,130,246,.14);color:var(--accent)"><svg><use href="#i-refresh"/></svg></span>
-        <span class="set-body"><span class="set-lbl">Correggi categorie dal file</span><span class="set-sub">Rilegge l'xlsx di Budget e finanze e sistema tutto</span></span>
+        <span class="set-body"><span class="set-lbl">Correggi categorie dal file</span><span class="set-sub">Rilegge l'xlsx di Budget e finanze — puoi scegliere solo le entrate</span></span>
         <svg class="row-arrow"><use href="#i-chevron"/></svg>
       </button>
       <button class="set-row" onclick="apriRiclassifica()">
@@ -672,7 +672,7 @@ select.form-input{cursor:pointer}
 
   <div class="section" style="padding-bottom:24px">
     <div style="text-align:center;font-size:12px;color:var(--text3);line-height:1.7">
-      Patrimonio v6.6<br>
+      Patrimonio v6.8<br>
       I dati sono salvati solo su questo dispositivo
     </div>
   </div>
@@ -898,6 +898,22 @@ select.form-input{cursor:pointer}
     <button class="btn-secondary" onclick="detailEdit()">Modifica</button>
     <button class="btn-danger" onclick="detailDelete()">Elimina investimento</button>
     <button class="btn-secondary" onclick="closeModal('investDetailModal')">Chiudi</button>
+  </div>
+</div>
+
+<!-- MODAL: AMBITO CORREZIONE -->
+<div class="modal-overlay" id="fixScopeModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Cosa vuoi correggere?</div>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.6">
+      Vengono toccate solo le transazioni che trovano corrispondenza nel file per data, importo e tipo.
+      Tutto ciò che hai inserito dopo l'export resta com'è.
+    </p>
+    <button class="btn-primary" onclick="scegliAmbitoCorrezione('entrate')">Solo le entrate</button>
+    <button class="btn-secondary" onclick="scegliAmbitoCorrezione('entrambi')">Entrate e uscite</button>
+    <button class="btn-secondary" onclick="scegliAmbitoCorrezione('uscite')">Solo le uscite</button>
+    <button class="btn-secondary" onclick="closeModal('fixScopeModal')">Annulla</button>
   </div>
 </div>
 
@@ -1408,6 +1424,13 @@ let askResolve=null;
 /** ID progressivo garantito univoco: niente decimali, così sopravvive
  *  al viaggio verso Google Fogli e ritorno. */
 let _lastId=0;
+/** aaaa-mm-gg da un oggetto Date, usando i componenti locali.
+ *  toISOString() su una mezzanotte italiana (UTC+1/+2) tornerebbe al giorno prima. */
+function isoLocale(d){
+  const p=n=>String(n).padStart(2,'0');
+  return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());
+}
+
 function nextId(){
   const now=Date.now();
   _lastId = now>_lastId ? now : _lastId+1;
@@ -2721,8 +2744,12 @@ function askCancel(){
 // posto dove quel dato esiste ancora è il file di Budget e finanze.
 // Qui lo si rilegge e si corregge solo la categoria, senza duplicare
 // nulla: l'abbinamento avviene su data + importo + tipo.
-function avviaCorrezioneCategorie(){
-  document.getElementById('fix-cat-file').click();
+let fixScope='entrambi';
+function avviaCorrezioneCategorie(){ openModal('fixScopeModal'); }
+function scegliAmbitoCorrezione(scope){
+  fixScope=scope;
+  closeModal('fixScopeModal');
+  setTimeout(()=>document.getElementById('fix-cat-file').click(),200);
 }
 
 function handleFixCategorie(e){
@@ -2769,7 +2796,7 @@ function eseguiCorrezione(file){
         for(let r=hi+1;r<rows.length;r++){
           const row=rows[r]; if(!row||row.every(c=>c==='')) continue;
           let dv=row[iD], ds='';
-          if(dv instanceof Date) ds=dv.toISOString().split('T')[0];
+          if(dv instanceof Date) ds=isoLocale(dv);
           else if(typeof dv==='number') ds=new Date(Math.round((dv-25569)*86400*1000)).toISOString().split('T')[0];
           else if(typeof dv==='string'&&dv) ds=dv.split('T')[0];
           const amt=parseFloat(row[iA]);
@@ -2794,18 +2821,20 @@ function eseguiCorrezione(file){
         }
       };
 
-      leggi('Spese','uscita');
-      leggi('Entrate','entrata');
+      if(fixScope!=='entrate') leggi('Spese','uscita');
+      if(fixScope!=='uscite')  leggi('Entrate','entrata');
 
       if(corrette) { saveState(); renderAll(); scheduleSync(); }
 
       const righe=[...dettaglio.entries()].sort((a,b)=>b[1]-a[1])
         .map(([k,n])=>`  ${n}×  ${k}`).join('\n');
+      const ambito={entrate:'solo entrate',uscite:'solo uscite',entrambi:'entrate e uscite'}[fixScope];
       alert(
-        `Correzione completata\n\n`+
+        `Correzione completata (${ambito})\n\n`+
         `${corrette} transazioni riclassificate\n`+
         `${invariate} già corrette\n`+
         `${nonTrovate} righe del file senza corrispondenza nell'app\n`+
+        `\nLe transazioni inserite dopo l'export non sono state toccate.\n`+
         (righe?`\nSpostamenti:\n${righe}`:'')
       );
     }catch(err){
@@ -4123,7 +4152,7 @@ function parseBFFile(file){
         for(let i=hi+1;i<rows.length;i++){
           const row=rows[i];if(!row||row.every(c=>c===''))continue;
           let dv=row[iD],ds='';
-          if(dv instanceof Date)ds=dv.toISOString().split('T')[0];
+          if(dv instanceof Date)ds=isoLocale(dv);
           else if(typeof dv==='number')ds=new Date(Math.round((dv-25569)*86400*1000)).toISOString().split('T')[0];
           else if(typeof dv==='string'&&dv)ds=dv.split('T')[0];
           if(!ds){skipped++;continue;}
