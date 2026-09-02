@@ -625,6 +625,11 @@ select.form-input{cursor:pointer}
         <span class="set-body"><span class="set-lbl">Twelve Data (solo mercati USA)</span><span class="set-sub" id="td-status">Non configurata</span></span>
         <svg class="row-arrow"><use href="#i-chevron"/></svg>
       </button>
+      <button class="set-row" onclick="resetBorse()">
+        <span class="set-icon" style="background:rgba(34,197,94,.14);color:#22C55E"><svg><use href="#i-refresh"/></svg></span>
+        <span class="set-body"><span class="set-lbl">Ricerca la borsa migliore</span><span class="set-sub">Dimentica la borsa salvata e riprova da quelle in euro</span></span>
+        <svg class="row-arrow"><use href="#i-chevron"/></svg>
+      </button>
       <button class="set-row" onclick="diagnosticaPrezzi()">
         <span class="set-icon" style="background:rgba(245,158,11,.14);color:var(--yellow)"><svg><use href="#i-search"/></svg></span>
         <span class="set-body"><span class="set-lbl">Diagnostica aggiornamento</span><span class="set-sub">Prova le fonti e mostra cosa risponde</span></span>
@@ -672,7 +677,7 @@ select.form-input{cursor:pointer}
 
   <div class="section" style="padding-bottom:24px">
     <div style="text-align:center;font-size:12px;color:var(--text3);line-height:1.7">
-      Patrimonio v6.11<br>
+      Patrimonio v6.12<br>
       I dati sono salvati solo su questo dispositivo
     </div>
   </div>
@@ -4253,6 +4258,25 @@ async function proxyFetchPubblico(url, timeout=7000){
 // Fonte 1: Yahoo Finance — prova più borse automaticamente
 // Fonte 0 (se configurata): Twelve Data — risponde direttamente al browser,
 // niente proxy di mezzo. È il modo più affidabile per ETF e azioni europee.
+// ── Cambio verso euro ──────────────────────────────────────────
+// Alcune borse quotano lo stesso ETF in valute diverse (VHVE vale USD a
+// Londra ed EUR a Milano). Qualunque prezzo arrivi, lo riportiamo in euro:
+// altrimenti il confronto con il prezzo medio di carico è privo di senso.
+const fxCache={};
+async function fetchFxRate(valuta){
+  const v=String(valuta||'EUR').toUpperCase();
+  if(!v || v==='EUR') return 1;
+  if(fxCache[v] && Date.now()-fxCache[v].t < 6*60*60*1000) return fxCache[v].r;
+  try{
+    const txt=await proxyFetch(`https://query1.finance.yahoo.com/v8/finance/chart/${v}EUR=X?interval=1d&range=1d`);
+    if(txt){
+      const r=JSON.parse(txt)?.chart?.result?.[0]?.meta?.regularMarketPrice;
+      if(r>0){ fxCache[v]={r, t:Date.now()}; return r; }
+    }
+  }catch(e){}
+  return null;
+}
+
 let tdUltimoErrore='';
 async function fetchTwelveData(ticker){
   tdUltimoErrore='';
@@ -4281,7 +4305,8 @@ async function fetchTwelveData(ticker){
 async function fetchYahoo(ticker, noto){
   const hasSuffix=/\.[A-Z]{1,2}$/i.test(ticker);
   const base=ticker.replace(/\.[A-Z]{1,2}$/i,'').toUpperCase();
-  let candidates = hasSuffix ? [ticker.toUpperCase()] : [`${base}.MI`,`${base}.AS`,`${base}.DE`,`${base}.L`,base];
+  // .MI, .DE, .AS quotano in euro: si provano per prime, .L quasi sempre no
+  let candidates = hasSuffix ? [ticker.toUpperCase()] : [`${base}.MI`,`${base}.DE`,`${base}.AS`,`${base}.L`,base];
   // Se in passato una borsa ha risposto, si parte da quella: evita 4 tentativi a vuoto
   if(noto) candidates=[noto,...candidates.filter(c=>c!==noto)];
   for(const t of candidates){
@@ -4365,19 +4390,30 @@ async function _updateOne(inv){
     if(!res) res=await fetchYahoo(ticker, inv.resolvedSymbol);
     if(!res) res=await fetchStooq(ticker);
     if(!res && inv.isin) res=await fetchJustETF(inv, inv.current||inv.price);
+    // Se la quotazione arriva in un'altra valuta la converto in euro,
+    // così il rendimento resta confrontabile col prezzo medio di carico.
+    let convertito=false;
+    if(res && res.currency && res.currency.toUpperCase()!=='EUR'){
+      const tasso=await fetchFxRate(res.currency);
+      if(!tasso) return {ok:false, nome:`${inv.name} (prezzo in ${res.currency}, cambio non disponibile)`};
+      res={...res, price:res.price*tasso, currency:'EUR',
+           source:`${res.source} · da ${(res.currency||'').toUpperCase()}`};
+      convertito=true;
+    }
+
     // Uno scostamento oltre il 50% dal prezzo noto è quasi sempre un errore
-    // (borsa o valuta sbagliata), non un movimento reale.
+    // (borsa sbagliata), non un movimento reale.
     const ref=inv.current||inv.price||0;
     const anomalo = res && ref>0 && (res.price<ref*0.5 || res.price>ref*1.5);
     if(res && res.price>0 && !anomalo){
       inv.current=res.price;
       inv.lastUpdate=new Date().toISOString();
-      inv.currency=res.currency||'EUR';
+      inv.currency='EUR';
       inv.priceSource=res.source;
       if(res.symbol) inv.resolvedSymbol=res.symbol;
       return {ok:true};
     }
-    return {ok:false, nome:inv.name+(anomalo?` (scartato: ${res.price} ${res.currency||''} da ${res.source})`:'')};
+    return {ok:false, nome:inv.name+(anomalo?` (scartato: ${fmt(res.price)}${convertito?' convertiti':''} da ${res.source})`:'')};
   }catch(e){
     return {ok:false, nome:inv.name};
   }
@@ -4455,6 +4491,14 @@ async function _doRefresh(silent=false){
 
 function refreshPrices(){ lastRefreshAt=0; sheetProxyKo=false; return _doRefresh(false); }
 
+/** Dimentica la borsa memorizzata per ogni titolo e riparte dalle borse in euro */
+function resetBorse(){
+  (state.investments||[]).forEach(i=>{ delete i.resolvedSymbol; });
+  saveState();
+  toast('Borse azzerate, aggiorno i prezzi','ok');
+  refreshPrices();
+}
+
 // ── DIAGNOSTICA: prova le fonti una per una e racconta cosa risponde ──
 function salvaTdKey(){
   state.twelveKey=document.getElementById('td-key').value.trim()||null;
@@ -4529,7 +4573,13 @@ async function diagnosticaPrezzi(){
     const td=await fetchTwelveData(inv.resolvedSymbol||ticker);
     esiti.push(`Twelve Data: ${td?'€'+fmt(td.price)+' '+(td.currency||''):(state.twelveKey?(tdUltimoErrore||'nessun dato'):'saltata')}`);
     const yh=await fetchYahoo(ticker, inv.resolvedSymbol);
-    esiti.push(`Yahoo: ${yh?'€'+fmt(yh.price)+' ('+yh.symbol+', '+(yh.currency||'')+')':'nessun dato'}`);
+    if(yh && (yh.currency||'EUR').toUpperCase()!=='EUR'){
+      const t=await fetchFxRate(yh.currency);
+      esiti.push(`Yahoo: ${fmt(yh.price)} ${yh.currency} da ${yh.symbol}`+
+        (t?` → €${fmt(yh.price*t)} (cambio ${t.toFixed(4)})`:' → cambio non disponibile'));
+    } else {
+      esiti.push(`Yahoo: ${yh?'€'+fmt(yh.price)+' ('+yh.symbol+')':'nessun dato'}`);
+    }
     let st=null; if(!yh) st=await fetchStooq(ticker);
     esiti.push(`Stooq: ${st?'€'+fmt(st.price):(yh?'non provata':'nessun dato')}`);
     let je=null; if(!yh && !st && inv.isin) je=await fetchJustETF(inv, inv.current||inv.price);
