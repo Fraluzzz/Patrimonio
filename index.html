@@ -677,7 +677,7 @@ select.form-input{cursor:pointer}
 
   <div class="section" style="padding-bottom:24px">
     <div style="text-align:center;font-size:12px;color:var(--text3);line-height:1.7">
-      Patrimonio v6.14<br>
+      Patrimonio v6.15<br>
       I dati sono salvati solo su questo dispositivo
     </div>
   </div>
@@ -1324,6 +1324,7 @@ const DEFAULT_CATEGORIES=[
   {id:'famiglia',   label:'👪 Famiglia',           color:'#4ade80', tipo:'entrata'},
   {id:'interessi',  label:'📈 Interessi',          color:'#38bdf8', tipo:'entrata'},
   {id:'rimborsi',   label:'↩️ Rimborsi',           color:'#2dd4bf', tipo:'entrata'},
+  {id:'saveback',   label:'💳 Saveback',           color:'#0ea5e9', tipo:'entrata'},
   {id:'regali_in',  label:'🎁 Regali',             color:'#f43f5e', tipo:'entrata'},
   {id:'prestiti_in',label:'🤝 Prestiti',           color:'#c084fc', tipo:'entrata'},
   {id:'entrate',    label:'💰 Altre entrate',      color:'#22c55e', tipo:'entrata'},
@@ -2949,7 +2950,7 @@ function applicaCatRicl(id){
 
 // ── GESTIONE CATEGORIE ────────────────────────────────────────
 const CAT_COLORS=['#f59e0b','#3b82f6','#8b5cf6','#ec4899','#10b981','#f97316','#06b6d4','#84cc16','#14b8a6','#ef4444','#a855f7','#94a3b8'];
-const CAT_EMOJIS=['🍽️','🛒','🍕','☕','🍺','🚗','⛽','🚌','🏠','💡','🧾','📱','💻','💊','🩺','💇','🧴','👕','👟','🛍️','🎮','🎬','🎵','🏃','🏋️','⚽','✈️','🏨','📚','🎓','🎁','🤝','🏦','💰','📈','🐾','🔧','🌿','❤️','💼'];
+const CAT_EMOJIS=['🍽️','🛒','🍕','☕','🍺','🚗','⛽','🚌','🏠','💡','🧾','📱','💻','💊','🩺','💇','🧴','👕','👟','🛍️','🎮','🎬','🎵','🏃','🏋️','⚽','✈️','🏨','📚','🎓','🎁','🤝','🏦','💰','📈','🐾','🔧','🌿','❤️','💼','💳','🔄','↩️','💵','👪','🪙','🧮','🎯','🛠️','🚿','🅿️','🧺'];
 let editingCatId=null, catEmoji='💼', catColor='#94a3b8', catTipo='uscita';
 
 function renderCatMgr(){
@@ -3739,7 +3740,7 @@ function apriVersamento(id){
   sel.innerHTML='<option value="">Nessun movimento su conto</option>'+
     state.conti.map(c=>`<option value="${c.id}"${inv.contoId===c.id?' selected':''}>${esc(c.name)} (€${fmt(c.saldo)})</option>`).join('');
   document.getElementById('vers-cat').innerHTML=catsPerTipo('entrata').map(c=>
-    `<option value="${c.id}"${c.id==='rimborsi'?' selected':''}>${esc(c.label)}</option>`).join('');
+    `<option value="${c.id}"${c.id==='saveback'?' selected':''}>${esc(c.label)}</option>`).join('');
   document.getElementById('vers-desc').value='';
   setVersOrigine('conto');
   renderVersAnteprima();
