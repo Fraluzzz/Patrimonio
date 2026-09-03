@@ -677,7 +677,7 @@ select.form-input{cursor:pointer}
 
   <div class="section" style="padding-bottom:24px">
     <div style="text-align:center;font-size:12px;color:var(--text3);line-height:1.7">
-      Patrimonio v6.12<br>
+      Patrimonio v6.14<br>
       I dati sono salvati solo su questo dispositivo
     </div>
   </div>
@@ -965,9 +965,19 @@ select.form-input{cursor:pointer}
     </div>
     <div class="form-group"><label class="form-label">DATA</label><input type="date" class="form-input" id="vers-data"></div>
     <div class="form-group">
-      <label class="form-label">ADDEBITA DA CONTO <span class="no-data-badge">opzionale</span></label>
+      <label class="form-label">DA DOVE ARRIVA</label>
+      <div class="seg" style="margin:0 0 10px">
+        <button data-o="conto" class="on" onclick="setVersOrigine('conto')">Dal conto</button>
+        <button data-o="entrata" onclick="setVersOrigine('entrata')">Cashback</button>
+      </div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:10px" id="vers-origine-nota">Un versamento non è una spesa: sposta denaro dal conto agli investimenti, il patrimonio totale non cambia.</div>
       <select class="form-input" id="vers-conto"><option value="">Nessun movimento su conto</option></select>
-      <div style="font-size:12px;color:var(--text3);margin-top:6px">Un versamento non è una spesa: sposta denaro dal conto agli investimenti, il patrimonio totale non cambia.</div>
+    </div>
+    <div class="form-group" id="vers-entrata-box" style="display:none">
+      <label class="form-label">CATEGORIA DELL'ENTRATA</label>
+      <select class="form-input" id="vers-cat" style="margin-bottom:10px"></select>
+      <label class="form-label">DESCRIZIONE</label>
+      <input type="text" class="form-input" id="vers-desc" placeholder="es. Saveback Trade Republic">
     </div>
     <div id="vers-anteprima" style="font-size:13px;line-height:1.7;padding:12px 14px;background:var(--bg3);border-radius:var(--radius-sm);margin-bottom:16px"></div>
     <button class="btn-primary" onclick="salvaVersamento()">Registra versamento</button>
@@ -995,6 +1005,10 @@ select.form-input{cursor:pointer}
       <label class="form-label">ADDEBITA DA CONTO <span class="no-data-badge">opzionale</span></label>
       <select class="form-input" id="invest-conto"><option value="">Nessun movimento su conto</option></select>
       <div style="font-size:12px;color:var(--text3);margin-top:6px">Se selezioni un conto, il costo dell'investimento (quantità × prezzo carico) verrà sottratto dal saldo.</div>
+    </div>
+    <div class="form-group" id="invest-data-group">
+      <label class="form-label">DATA DEL PRIMO ACQUISTO</label>
+      <input type="date" class="form-input" id="invest-data">
     </div>
     <button class="btn-primary" id="invest-save-btn" onclick="saveInvestment()">Aggiungi</button>
     <button class="btn-secondary" onclick="closeModal('investModal')">Annulla</button>
@@ -2242,6 +2256,11 @@ function openInvestModal(id){
     // In modifica non addebitare di nuovo
     document.getElementById('invest-conto-group').style.display=editingInvId?'none':'block';
   }
+  const dg=document.getElementById('invest-data-group');
+  if(dg){
+    dg.style.display=editingInvId?'none':'block';
+    document.getElementById('invest-data').value=isoLocale(new Date());
+  }
   if(editingInvId){
     const inv=state.investments.find(i=>i.id===editingInvId);
     if(inv){
@@ -2275,7 +2294,7 @@ function saveInvestment(){
     editingInvId=null;
   } else {
     const contoId=parseInt(document.getElementById('invest-conto')?.value)||null;
-    const oggi=new Date().toISOString().split('T')[0];
+    const oggi=document.getElementById('invest-data')?.value||isoLocale(new Date());
     state.investments.push({id:nextId(),name,isin,qty,price,current,type,contoId,
       versamenti:[{date:oggi,importo:Math.round(qty*price*100)/100,qty,prezzo:price,contoId}]});
     // Sottrai il costo dal conto selezionato
@@ -3693,7 +3712,7 @@ function storicoVersamenti(inv){
     const c=x.contoId?state.conti.find(y=>y.id===x.contoId):null;
     const d=new Date(x.date).toLocaleDateString('it-IT',{day:'numeric',month:'short',year:'2-digit'});
     return `<div style="display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid var(--border)">
-      <span style="color:var(--text2)">${esc(d)}${c?' · '+esc(c.name):''}</span>
+      <span style="color:var(--text2)">${esc(d)}${x.origine==='entrata'?' · cashback':(c?' · '+esc(c.name):'')}</span>
       <span class="hide-val" style="font-weight:600;white-space:nowrap">€${fmt(x.importo)}</span>
     </div>`;
   }).join('');
@@ -3719,9 +3738,24 @@ function apriVersamento(id){
   const sel=document.getElementById('vers-conto');
   sel.innerHTML='<option value="">Nessun movimento su conto</option>'+
     state.conti.map(c=>`<option value="${c.id}"${inv.contoId===c.id?' selected':''}>${esc(c.name)} (€${fmt(c.saldo)})</option>`).join('');
+  document.getElementById('vers-cat').innerHTML=catsPerTipo('entrata').map(c=>
+    `<option value="${c.id}"${c.id==='rimborsi'?' selected':''}>${esc(c.label)}</option>`).join('');
+  document.getElementById('vers-desc').value='';
+  setVersOrigine('conto');
   renderVersAnteprima();
   closeModal('investDetailModal');
   setTimeout(()=>openModal('versamentoModal'),200);
+}
+
+let versOrigine='conto';
+function setVersOrigine(o){
+  versOrigine=o;
+  document.querySelectorAll('#versamentoModal .seg button').forEach(b=>b.classList.toggle('on',b.dataset.o===o));
+  document.getElementById('vers-entrata-box').style.display = o==='entrata' ? 'block' : 'none';
+  document.getElementById('vers-conto').style.display = o==='entrata' ? 'none' : 'block';
+  document.getElementById('vers-origine-nota').textContent = o==='entrata'
+    ? 'Il saveback non transita dal conto: viene investito direttamente. Lo registro come entrata senza conto, così il saldo resta intatto e il patrimonio cresce del valore ricevuto.'
+    : 'Un versamento non è una spesa: sposta denaro dal conto agli investimenti, il patrimonio totale non cambia.';
 }
 
 function renderVersAnteprima(){
@@ -3753,8 +3787,19 @@ function salvaVersamento(){
   if(!imp||imp<=0) return toast('Inserisci un importo valido','err');
   if(!pz||pz<=0) return toast('Inserisci un prezzo valido','err');
 
-  const conto=contoId?state.conti.find(c=>c.id===contoId):null;
-  if(conto && conto.saldo<imp && !confirm(`Il saldo di ${conto.name} (€${fmt(conto.saldo)}) non copre €${fmt(imp)} e andrà in negativo. Continuare?`)) return;
+  // Nel cashback il denaro non passa mai dal conto: nessun conto da addebitare
+  const conto = versOrigine==='entrata' ? null : (contoId?state.conti.find(c=>c.id===contoId):null);
+  if(versOrigine==='conto' && conto && conto.saldo<imp &&
+     !confirm(`Il saldo di ${conto.name} (€${fmt(conto.saldo)}) non copre €${fmt(imp)} e andrà in negativo. Continuare?`)) return;
+
+  // Il saveback è denaro nuovo investito direttamente: lo registro come entrata
+  // senza conto, così compare fra le entrate e il patrimonio cresce davvero,
+  // ma nessun saldo viene toccato.
+  if(versOrigine==='entrata'){
+    const cat=document.getElementById('vers-cat').value||'entrate';
+    const desc=(document.getElementById('vers-desc').value||'').trim()||('Saveback investito in '+inv.name);
+    state.transactions.push({id:nextId(),amount:imp,desc,cat,type:'entrata',date:data,contoId:null,tag:null});
+  }
 
   const qAcq=imp/pz;
   const nuovaQty=inv.qty+qAcq;
@@ -3764,9 +3809,11 @@ function salvaVersamento(){
   if(!Array.isArray(inv.versamenti)) inv.versamenti=[];
   inv.versamenti.push({date:data,importo:Math.round(imp*100)/100,qty:qAcq,prezzo:pz,contoId});
   if(conto){ conto.saldo-=imp; inv.contoId=contoId; }
+  inv.versamenti[inv.versamenti.length-1].origine=versOrigine;
 
   snapshotPatrimonio(); saveState(); closeModal('versamentoModal'); renderAll(); scheduleSync();
-  toast(conto?`€${fmt(imp)} versati da ${conto.name}`:`€${fmt(imp)} versati`,'ok');
+  toast(versOrigine==='entrata' ? `€${fmt(imp)} di cashback registrati e investiti`
+        : conto ? `€${fmt(imp)} versati da ${conto.name}` : `€${fmt(imp)} versati`,'ok');
   setTimeout(()=>openInvestDetail(inv.id),250);
 }
 
