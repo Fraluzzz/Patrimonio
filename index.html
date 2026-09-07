@@ -491,14 +491,6 @@ select.form-input{cursor:pointer}
     <div class="section-title">Portafoglio</div>
     <div class="card" id="investments-list"></div>
   </div>
-  <div class="section">
-    <div class="section-title">Connessioni</div>
-    <div class="binance-connect" onclick="openModal('binanceModal')">
-      <div class="binance-mark">B</div>
-      <div><div style="font-size:14px;font-weight:700;color:#e8b931">Binance</div><div style="font-size:12px;color:var(--text2);margin-top:2px" id="binance-status-text">Collega via API key</div></div>
-      <div class="connect-badge" id="binance-badge">Connetti</div>
-    </div>
-  </div>
 </div>
 
 <!-- OBIETTIVI -->
@@ -554,22 +546,12 @@ select.form-input{cursor:pointer}
         <svg class="row-arrow"><use href="#i-chevron"/></svg>
       </button>
       <button class="set-row" onclick="openModal('catMgrModal')">
-        <span class="set-icon" style="background:rgba(167,139,250,.14);color:#A78BFA"><svg><use href="#i-plus"/></svg></span>
+        <span class="set-icon" style="background:rgba(139,92,246,.14);color:#8B5CF6"><svg><use href="#i-plus"/></svg></span>
         <span class="set-body"><span class="set-lbl">Categorie</span><span class="set-sub" id="cat-count-label">—</span></span>
         <svg class="row-arrow"><use href="#i-chevron"/></svg>
       </button>
-      <button class="set-row" onclick="avviaCorrezioneCategorie()">
-        <span class="set-icon" style="background:rgba(59,130,246,.14);color:var(--accent)"><svg><use href="#i-refresh"/></svg></span>
-        <span class="set-body"><span class="set-lbl">Correggi categorie dal file</span><span class="set-sub">Rilegge l'xlsx di Budget e finanze — puoi scegliere solo le entrate</span></span>
-        <svg class="row-arrow"><use href="#i-chevron"/></svg>
-      </button>
-      <button class="set-row" onclick="apriRiclassifica()">
-        <span class="set-icon" style="background:rgba(34,197,94,.14);color:#22C55E"><svg><use href="#i-arrow-in"/></svg></span>
-        <span class="set-body"><span class="set-lbl">Riclassifica entrate</span><span class="set-sub">Sistema le categorie dello storico importato</span></span>
-        <svg class="row-arrow"><use href="#i-chevron"/></svg>
-      </button>
       <button class="set-row" onclick="openModal('tagMgrModal')">
-        <span class="set-icon" style="background:rgba(99,102,241,.14);color:#818cf8"><svg><use href="#i-plus"/></svg></span>
+        <span class="set-icon" style="background:rgba(99,102,241,.14);color:#6366F1"><svg><use href="#i-plus"/></svg></span>
         <span class="set-body"><span class="set-lbl">Tag</span><span class="set-sub" id="tag-count-label">—</span></span>
         <svg class="row-arrow"><use href="#i-chevron"/></svg>
       </button>
@@ -577,8 +559,13 @@ select.form-input{cursor:pointer}
   </div>
 
   <div class="section">
-    <div class="section-title">Intelligenza artificiale</div>
+    <div class="section-title">Connessioni</div>
     <div class="set-group">
+      <button class="set-row" onclick="openModal('binanceModal')">
+        <span class="set-icon" style="background:rgba(232,185,49,.14);color:#E8B931"><svg><use href="#i-trend"/></svg></span>
+        <span class="set-body"><span class="set-lbl">Binance</span><span class="set-sub" id="binance-status-text">Collega via API key</span></span>
+        <svg class="row-arrow"><use href="#i-chevron"/></svg>
+      </button>
       <button class="set-row" onclick="openModal('apiKeyModal')">
         <span class="set-icon" style="background:rgba(245,158,11,.14);color:var(--yellow)"><svg><use href="#i-trend"/></svg></span>
         <span class="set-body"><span class="set-lbl">API Key Gemini</span><span class="set-sub" id="api-key-status">Non configurata</span></span>
@@ -591,40 +578,31 @@ select.form-input{cursor:pointer}
     <div class="section-title">Google Fogli</div>
     <div class="set-group">
       <button class="set-row" onclick="openSheetModal()">
-        <span class="set-icon" style="background:rgba(34,197,94,.14);color:#22C55E"><svg><use href="#i-export"/></svg></span>
+        <span class="set-icon" style="background:rgba(16,185,129,.14);color:var(--green)"><svg><use href="#i-download"/></svg></span>
         <span class="set-body"><span class="set-lbl">Foglio collegato</span><span class="set-sub" id="sheet-status">Nessuno</span></span>
         <svg class="row-arrow"><use href="#i-chevron"/></svg>
       </button>
       <button class="set-row" onclick="toggleSheetAuto()">
-        <span class="set-icon" style="background:rgba(59,130,246,.14);color:var(--accent)"><svg><use href="#i-refresh"/></svg></span>
+        <span class="set-icon" style="background:rgba(59,130,246,.14);color:var(--blue)"><svg><use href="#i-refresh"/></svg></span>
         <span class="set-body"><span class="set-lbl">Sincronizza in automatico</span><span class="set-sub" id="sheet-auto-status">Disattivata</span></span>
-        <span class="toggle" id="sheet-auto-toggle"></span>
+        <svg class="row-arrow"><use href="#i-chevron"/></svg>
       </button>
       <button class="set-row" id="sheet-sync-row" onclick="syncToSheet()">
-        <span class="set-icon" style="background:rgba(34,197,94,.14);color:#22C55E"><svg><use href="#i-arrow-out"/></svg></span>
+        <span class="set-icon" style="background:rgba(16,185,129,.14);color:var(--green)"><svg><use href="#i-upload"/></svg></span>
         <span class="set-body"><span class="set-lbl" id="sheet-sync-btn">Sincronizza ora</span><span class="set-sub">Invia tutti i dati al foglio</span></span>
         <svg class="row-arrow"><use href="#i-chevron"/></svg>
       </button>
-      <button class="set-row" onclick="openSheetModal()">
-        <span class="set-icon" style="background:rgba(148,163,184,.14);color:var(--text2)"><svg><use href="#i-search"/></svg></span>
-        <span class="set-body"><span class="set-lbl">Verifica collegamento</span><span class="set-sub">Controlla URL e versione dello script</span></span>
-        <svg class="row-arrow"><use href="#i-chevron"/></svg>
-      </button>
       <button class="set-row" onclick="pullFromSheet()">
-        <span class="set-icon" style="background:rgba(245,158,11,.14);color:var(--yellow)"><svg><use href="#i-arrow-in"/></svg></span>
+        <span class="set-icon" style="background:rgba(245,158,11,.14);color:var(--yellow)"><svg><use href="#i-download"/></svg></span>
         <span class="set-body"><span class="set-lbl">Importa dal foglio</span><span class="set-sub">Sostituisce le transazioni dell'app</span></span>
         <svg class="row-arrow"><use href="#i-chevron"/></svg>
       </button>
     </div>
   </div>
+
   <div class="section">
     <div class="section-title">Prezzi investimenti</div>
     <div class="set-group">
-      <button class="set-row" onclick="openModal('prezziModal')">
-        <span class="set-icon" style="background:rgba(56,189,248,.14);color:#38BDF8"><svg><use href="#i-trend"/></svg></span>
-        <span class="set-body"><span class="set-lbl">Twelve Data (solo mercati USA)</span><span class="set-sub" id="td-status">Non configurata</span></span>
-        <svg class="row-arrow"><use href="#i-chevron"/></svg>
-      </button>
       <button class="set-row" onclick="resetBorse()">
         <span class="set-icon" style="background:rgba(34,197,94,.14);color:#22C55E"><svg><use href="#i-refresh"/></svg></span>
         <span class="set-body"><span class="set-lbl">Ricerca la borsa migliore</span><span class="set-sub">Dimentica la borsa salvata e riprova da quelle in euro</span></span>
@@ -661,11 +639,6 @@ select.form-input{cursor:pointer}
         <span class="set-body"><span class="set-lbl">Ripristina backup</span><span class="set-sub">Carica un file JSON</span></span>
         <svg class="row-arrow"><use href="#i-chevron"/></svg>
       </button>
-      <button class="set-row" onclick="document.getElementById('import-bf-file').click()">
-        <span class="set-icon" style="background:rgba(148,163,184,.14);color:var(--text2)"><svg><use href="#i-arrow-in"/></svg></span>
-        <span class="set-body"><span class="set-lbl">Importa da Budget e finanze</span><span class="set-sub">File .xlsx esportato dall'app</span></span>
-        <svg class="row-arrow"><use href="#i-chevron"/></svg>
-      </button>
     </div>
     <div class="set-group">
       <button class="set-row" onclick="resetData()">
@@ -677,7 +650,7 @@ select.form-input{cursor:pointer}
 
   <div class="section" style="padding-bottom:24px">
     <div style="text-align:center;font-size:12px;color:var(--text3);line-height:1.7">
-      Patrimonio v6.17<br>
+      Patrimonio v7.0<br>
       I dati sono salvati solo su questo dispositivo
     </div>
   </div>
@@ -909,38 +882,6 @@ select.form-input{cursor:pointer}
   </div>
 </div>
 
-<!-- MODAL: AMBITO CORREZIONE -->
-<div class="modal-overlay" id="fixScopeModal">
-  <div class="modal">
-    <div class="modal-handle"></div>
-    <div class="modal-title">Cosa vuoi correggere?</div>
-    <p style="font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.6">
-      Vengono toccate solo le transazioni che trovano corrispondenza nel file per data, importo e tipo.
-      Tutto ciò che hai inserito dopo l'export resta com'è.
-    </p>
-    <button class="btn-primary" onclick="scegliAmbitoCorrezione('entrate')">Solo le entrate</button>
-    <button class="btn-secondary" onclick="scegliAmbitoCorrezione('entrambi')">Entrate e uscite</button>
-    <button class="btn-secondary" onclick="scegliAmbitoCorrezione('uscite')">Solo le uscite</button>
-    <button class="btn-secondary" onclick="closeModal('fixScopeModal')">Annulla</button>
-  </div>
-</div>
-
-<!-- MODAL: FONTE PREZZI -->
-<div class="modal-overlay" id="prezziModal">
-  <div class="modal">
-    <div class="modal-handle"></div>
-    <div class="modal-title">Fonte diretta dei prezzi</div>
-    <p style="font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.6">
-      Utile solo per titoli e ETF quotati negli Stati Uniti: il piano gratuito non copre Borsa Italiana, Xetra e le altre borse europee.
-      Per gli ETF europei serve il ponte Apps Script del tuo foglio Google, che non ha questo limite.
-      Se ne hai una, incolla qui la chiave: verrà provata per prima sui titoli americani.
-    </p>
-    <div class="form-group"><label class="form-label">API KEY TWELVE DATA</label><input type="password" class="form-input" id="td-key" placeholder="Lascia vuoto per usare solo i proxy"></div>
-    <button class="btn-primary" onclick="salvaTdKey()">Salva</button>
-    <button class="btn-secondary" onclick="closeModal('prezziModal')">Annulla</button>
-  </div>
-</div>
-
 <!-- MODAL: DIAGNOSTICA PREZZI -->
 <div class="modal-overlay" id="diagModal">
   <div class="modal">
@@ -1096,20 +1037,6 @@ select.form-input{cursor:pointer}
     <button class="btn-secondary" style="margin-top:0" onclick="testSheet()">Verifica collegamento</button>
     <button class="btn-primary" onclick="saveSheetUrl()">Salva</button>
     <button class="btn-secondary" onclick="closeModal('sheetModal')">Annulla</button>
-  </div>
-</div>
-
-<!-- MODAL: RICLASSIFICA ENTRATE -->
-<div class="modal-overlay" id="riclModal">
-  <div class="modal">
-    <div class="modal-handle"></div>
-    <div class="modal-title">Riclassifica entrate</div>
-    <p style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:14px">
-      Revisione manuale, raggruppata per descrizione. Utile per le entrate inserite a mano o se non hai più il file originale: per lo storico importato usa invece «Correggi categorie dal file», che è preciso.
-    </p>
-    <div id="ricl-summary" style="font-size:13px;line-height:1.6;padding:11px 13px;background:var(--bg3);border-radius:var(--radius-sm);margin-bottom:14px"></div>
-    <div id="ricl-list"></div>
-    <button class="btn-secondary" onclick="closeModal('riclModal')">Chiudi</button>
   </div>
 </div>
 
@@ -1285,14 +1212,13 @@ select.form-input{cursor:pointer}
 </div>
 
 <input type="file" id="import-file" accept=".json" style="display:none" onchange="handleImport(event)">
-<input type="file" id="fix-cat-file" accept=".xlsx,.xls" style="display:none" onchange="handleFixCategorie(event)">
 <input type="file" id="import-bf-file" accept=".xlsx,.xls" style="display:none" onchange="handleImportBF(event)">
 
 <script>
 // ── STATE ─────────────────────────────────────────────────────
 let state = {
   transactions:[], investments:[], conti:[], debiti:[], trasferimenti:[], obiettivi:[],
-  budget:null, binanceKey:null, anthropicKey:null, twelveKey:null,
+  budget:null, binanceKey:null, anthropicKey:null,
   patrimonioStorico:[],
   currentMonth:new Date().getMonth(), currentYear:new Date().getFullYear(),
   viewMode:'mese', currentWeekOffset:0,
@@ -1535,7 +1461,6 @@ function openModal(id){
   if(id==='tagMgrModal') renderTagMgr();
   if(id==='contoModal' && !editingContoId) initContoModal();
   if(id==='apiKeyModal') document.getElementById('anthropic-api-key').value=state.anthropicKey||'';
-  if(id==='prezziModal') document.getElementById('td-key').value=state.twelveKey||'';
   if(id==='obiettivoModal' && !editingObId) initObiettivoModal();
 }
 function closeModal(id){document.getElementById(id).classList.remove('open');}
@@ -2808,133 +2733,8 @@ function askCancel(){
 // Qui lo si rilegge e si corregge solo la categoria, senza duplicare
 // nulla: l'abbinamento avviene su data + importo + tipo.
 let fixScope='entrambi';
-function avviaCorrezioneCategorie(){ openModal('fixScopeModal'); }
-function scegliAmbitoCorrezione(scope){
-  fixScope=scope;
-  closeModal('fixScopeModal');
-  setTimeout(()=>document.getElementById('fix-cat-file').click(),200);
-}
 
-function handleFixCategorie(e){
-  const file=e.target.files[0]; e.target.value='';
-  if(!file) return;
-  if(!window.XLSX){
-    const sc=document.createElement('script');
-    sc.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
-    sc.onload=()=>eseguiCorrezione(file);
-    sc.onerror=()=>toast('Errore nel caricamento della libreria','err');
-    document.head.appendChild(sc);
-  } else eseguiCorrezione(file);
-}
 
-function eseguiCorrezione(file){
-  const reader=new FileReader();
-  reader.onload=ev=>{
-    try{
-      syncCategories();
-      const wb=XLSX.read(new Uint8Array(ev.target.result),{type:'array',cellDates:true});
-
-      // Indice delle transazioni dell'app: data|importo|tipo
-      const idx=new Map();
-      state.transactions.forEach(t=>{
-        const k=t.date+'|'+Math.round(t.amount*100)+'|'+t.type;
-        if(!idx.has(k)) idx.set(k,[]);
-        idx.get(k).push(t);
-      });
-
-      let corrette=0, invariate=0, nonTrovate=0, sfasate=0;
-      const dettaglio=new Map();
-      const daRidatare=[];   // trovate solo spostando la data di un giorno
-
-      /** Sposta una data aaaa-mm-gg di n giorni */
-      const spostaData=(ds,n)=>{
-        const [y,m,d]=ds.split('-').map(Number);
-        const dt=new Date(y,m-1,d+n);
-        return isoLocale(dt);
-      };
-
-      const leggi=(nomeFoglio,tipo)=>{
-        const ws=wb.Sheets[nomeFoglio]; if(!ws) return;
-        const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
-        const hi=rows.findIndex(r=>r.some(c=>String(c).includes('Data e ora')));
-        if(hi===-1) return;
-        const hdr=rows[hi].map(h=>String(h).trim());
-        const iD=hdr.findIndex(h=>h.includes('Data e ora'));
-        const iA=hdr.findIndex(h=>h.includes('Importo in valuta predefinita')||h.includes('Importo nella valuta in uscita'));
-        const iC=hdr.findIndex(h=>h==='Categoria');
-        const mappa = tipo==='entrata' ? BF_CAT_MAP_ENTRATE : BF_CAT_MAP;
-
-        for(let r=hi+1;r<rows.length;r++){
-          const row=rows[r]; if(!row||row.every(c=>c==='')) continue;
-          let dv=row[iD], ds='';
-          if(dv instanceof Date) ds=isoLocale(dv);
-          else if(typeof dv==='number') ds=new Date(Math.round((dv-25569)*86400*1000)).toISOString().split('T')[0];
-          else if(typeof dv==='string'&&dv) ds=dv.split('T')[0];
-          const amt=parseFloat(row[iA]);
-          if(!ds||!amt||isNaN(amt)||amt<=0) continue;
-
-          const catOrig=String(row[iC]||'').trim();
-          let nuova=mappa[catOrig.toLowerCase()] || catFallback(tipo);
-          const co=CATEGORIES.find(c=>c.id===nuova);
-          if(!co || (co.tipo||'uscita')!==tipo) nuova=catFallback(tipo);
-
-          const cents=Math.round(amt*100);
-          // Le prime importazioni convertivano le date con toISOString(): a
-          // Roma o Madrid la mezzanotte diventa il giorno prima. Se non trovo
-          // corrispondenza esatta provo lo scarto di un giorno.
-          let cand=idx.get(ds+'|'+cents+'|'+tipo), scarto=0;
-          if(!cand||!cand.length){
-            for(const n of [-1,1]){
-              const alt=idx.get(spostaData(ds,n)+'|'+cents+'|'+tipo);
-              if(alt&&alt.length){ cand=alt; scarto=n; break; }
-            }
-          }
-          if(!cand||!cand.length){ nonTrovate++; continue; }
-          const t=cand.shift();          // consuma: gestisce eventuali doppioni
-          if(scarto){ sfasate++; daRidatare.push([t,ds]); }
-          if(t.cat===nuova){ invariate++; continue; }
-          const da=CATEGORIES.find(c=>c.id===t.cat);
-          const a=CATEGORIES.find(c=>c.id===nuova);
-          const key=(da?da.label:t.cat)+' → '+(a?a.label:nuova);
-          dettaglio.set(key,(dettaglio.get(key)||0)+1);
-          t.cat=nuova;
-          corrette++;
-        }
-      };
-
-      if(fixScope!=='entrate') leggi('Spese','uscita');
-      if(fixScope!=='uscite')  leggi('Entrate','entrata');
-
-      // Se molte transazioni erano spostate di un giorno, offro di raddrizzarle:
-      // una data sbagliata cambia il mese di appartenenza e falsa i totali.
-      let ridatate=0;
-      if(daRidatare.length && confirm(
-          `${daRidatare.length} transazioni hanno nell'app una data diversa di un giorno da quella del file.\n\n`+
-          `È un errore di conversione delle vecchie importazioni: alcune spese risultano nel mese sbagliato.\n\n`+
-          `Vuoi correggere anche le date?`)){
-        daRidatare.forEach(([t,ds])=>{ t.date=ds; ridatate++; });
-      }
-
-      if(corrette||ridatate) { saveState(); renderAll(); scheduleSync(); }
-
-      const righe=[...dettaglio.entries()].sort((a,b)=>b[1]-a[1])
-        .map(([k,n])=>`  ${n}×  ${k}`).join('\n');
-      const ambito={entrate:'solo entrate',uscite:'solo uscite',entrambi:'entrate e uscite'}[fixScope];
-      alert(
-        `Correzione completata (${ambito})\n\n`+
-        `${corrette} transazioni riclassificate\n`+
-        `${invariate} già corrette\n`+
-        `${nonTrovate} righe del file senza corrispondenza nell'app\n`+
-        (sfasate?`${sfasate} trovate con la data spostata di un giorno${ridatate?` · ${ridatate} date corrette`:' · date lasciate com\'erano'}\n`:'')+
-        `\nLe transazioni inserite dopo l'export non sono state toccate.\n`+
-        (righe?`\nSpostamenti:\n${righe}`:'')
-      );
-    }catch(err){
-      alert('Errore durante la correzione\n\n'+err.message);
-    }
-  };
-  reader.readAsArrayBuffer(file);
-}
 
 // ── RICLASSIFICA ENTRATE ──────────────────────────────────────
 // Lo storico importato da Budget e finanze è finito in categorie di
@@ -2943,54 +2743,7 @@ function eseguiCorrezione(file){
 // così puoi spostarle in blocco senza toccarle una per una.
 let riclData=null;
 
-function apriRiclassifica(){
-  syncCategories();
-  const entrate=state.transactions.filter(t=>t.type==='entrata');
-  if(!entrate.length){ toast('Non ci sono entrate da riclassificare'); return; }
 
-  const m=new Map();
-  entrate.forEach(t=>{
-    const k=(t.cat||'—')+'§'+(t.desc||'');
-    if(!m.has(k)) m.set(k,{cat:t.cat, desc:t.desc, ids:[], tot:0});
-    const g=m.get(k);
-    g.ids.push(t.id); g.tot+=t.amount;
-  });
-  riclData=[...m.values()].sort((a,b)=>b.tot-a.tot);
-  renderRiclassifica();
-  openModal('riclModal');
-}
-
-function renderRiclassifica(){
-  const valide=catsPerTipo('entrata');
-  const idsValidi=new Set(valide.map(c=>c.id));
-  const daSistemare=riclData.filter(g=>!idsValidi.has(g.cat)).length;
-
-  const tot=riclData.reduce((n,g)=>n+g.ids.length,0);
-  document.getElementById('ricl-summary').innerHTML=
-    daSistemare
-      ? `<span style="color:var(--yellow)"><strong>${daSistemare}</strong> grupp${daSistemare===1?'o è':'i sono'} in una categoria di sola uscita.</span>`
-      : `<span style="color:var(--text2)">${tot} entrate in ${riclData.length} grupp${riclData.length===1?'o':'i'}. Tocca un gruppo per cambiarne la categoria.</span>`;
-
-  document.getElementById('ricl-list').innerHTML=riclData.map((g,i)=>{
-    const c=CATEGORIES.find(x=>x.id===g.cat);
-    const ok=idsValidi.has(g.cat);
-    return `<div class="ricl-row${ok?'':' ricl-todo'}">
-      <button class="ricl-tap" onclick="cambiaCatRicl(${i})">
-        <span class="ricl-mark" style="background:${(c?.color||'#94a3b8')}22;color:${c?.color||'#94a3b8'}">
-          ${c?(c.label||'').split(' ')[0]:'?'}</span>
-        <span class="ricl-main">
-          <span class="ricl-desc">${esc(g.desc||'(senza descrizione)')}</span>
-          <span class="ricl-cat">${c?esc(c.label.replace(/^\S+\s/,'')):'sconosciuta'}
-            <svg class="art-chev"><use href="#i-chevron"/></svg></span>
-        </span>
-      </button>
-      <span class="ricl-right">
-        <span class="ricl-tot hide-val">€${fmt(g.tot)}</span>
-        <span class="ricl-n">${g.ids.length} mov.</span>
-      </span>
-    </div>`;
-  }).join('');
-}
 
 let riclInModifica=null;
 function cambiaCatRicl(i){
@@ -3653,7 +3406,8 @@ function txdDelete(){const id=detailTxId;closeModal('txDetailModal');setTimeout(
 
 // ── INVESTIMENTI ──────────────────────────────────────────────
 function renderInvestimenti(){
-  document.getElementById('binance-badge').textContent=state.binanceKey?'Connesso':'Connetti';
+  const bb=document.getElementById('binance-badge');
+  if(bb) bb.textContent=state.binanceKey?'Connesso':'Connetti';
   document.getElementById('binance-status-text').textContent=state.binanceKey?'API key salvata':'Collega via API key';
   const list=document.getElementById('investments-list');
 
@@ -4052,8 +3806,6 @@ function renderSettings(){
   if(tc){const n=allTags().length;tc.textContent=n?n+' tag':'Nessun tag';}
   const ak=document.getElementById('api-key-status');
   if(ak) ak.textContent=state.anthropicKey?'Configurata — scansione attiva':'Non configurata';
-  const td=document.getElementById('td-status');
-  if(td) td.textContent=state.twelveKey?'Configurata — fonte diretta attiva':'Non configurata — si usano i proxy';
   const ss=document.getElementById('sheet-status');
   if(ss){
     if(state.sheetUrl){
@@ -4306,7 +4058,7 @@ function parseBFFile(file){
   reader.readAsArrayBuffer(file);
 }
 
-function resetData(){if(!confirm('Sei sicuro? Azione irreversibile.'))return;state={transactions:[],investments:[],conti:[],debiti:[],trasferimenti:[],obiettivi:[],budget:null,binanceKey:null,anthropicKey:null,twelveKey:null,patrimonioStorico:[],currentMonth:new Date().getMonth(),currentYear:new Date().getFullYear(),viewMode:'mese',currentWeekOffset:0,categorie:DEFAULT_CATEGORIES.map(c=>({...c})),catStrictV1:true,catCleanV1:true,tags:[],sheetUrl:null,sheetAuto:false,sheetLastSync:null,geminiModel:null};saveState();renderAll();}
+function resetData(){if(!confirm('Sei sicuro? Azione irreversibile.'))return;state={transactions:[],investments:[],conti:[],debiti:[],trasferimenti:[],obiettivi:[],budget:null,binanceKey:null,anthropicKey:null,patrimonioStorico:[],currentMonth:new Date().getMonth(),currentYear:new Date().getFullYear(),viewMode:'mese',currentWeekOffset:0,categorie:DEFAULT_CATEGORIES.map(c=>({...c})),catStrictV1:true,catCleanV1:true,tags:[],sheetUrl:null,sheetAuto:false,sheetLastSync:null,geminiModel:null};saveState();renderAll();}
 
 // ── PRIVACY MODE ─────────────────────────────────────────────
 let privacyOn=false;
@@ -4374,52 +4126,6 @@ async function proxyFetchPubblico(url, timeout=7000){
 }
 
 // Fonte 1: Yahoo Finance — prova più borse automaticamente
-// Fonte 0 (se configurata): Twelve Data — risponde direttamente al browser,
-// niente proxy di mezzo. È il modo più affidabile per ETF e azioni europee.
-// ── Cambio verso euro ──────────────────────────────────────────
-// Alcune borse quotano lo stesso ETF in valute diverse (VHVE vale USD a
-// Londra ed EUR a Milano). Qualunque prezzo arrivi, lo riportiamo in euro:
-// altrimenti il confronto con il prezzo medio di carico è privo di senso.
-const fxCache={};
-async function fetchFxRate(valuta){
-  const v=String(valuta||'EUR').toUpperCase();
-  if(!v || v==='EUR') return 1;
-  if(fxCache[v] && Date.now()-fxCache[v].t < 6*60*60*1000) return fxCache[v].r;
-  try{
-    const txt=await proxyFetch(`https://query1.finance.yahoo.com/v8/finance/chart/${v}EUR=X?interval=1d&range=1d`);
-    if(txt){
-      const r=JSON.parse(txt)?.chart?.result?.[0]?.meta?.regularMarketPrice;
-      if(r>0){ fxCache[v]={r, t:Date.now()}; return r; }
-    }
-  }catch(e){}
-  return null;
-}
-
-let tdUltimoErrore='';
-async function fetchTwelveData(ticker){
-  tdUltimoErrore='';
-  if(!state.twelveKey) return null;
-  const base=ticker.replace(/\.[A-Z]{1,2}$/i,'').toUpperCase();
-  const suff=(ticker.match(/\.([A-Z]{1,2})$/i)||[])[1];
-  const BORSE={MI:'XMIL',AS:'XAMS',DE:'XETR',L:'XLON',PA:'XPAR',SW:'XSWX'};
-  const tentativi = suff && BORSE[suff.toUpperCase()]
-    ? [{symbol:base, mic_code:BORSE[suff.toUpperCase()]}, {symbol:base}]
-    : [{symbol:base, mic_code:'XETR'}, {symbol:base, mic_code:'XMIL'}, {symbol:base}];
-  for(const q of tentativi){
-    try{
-      const qs=new URLSearchParams({...q, apikey:state.twelveKey});
-      const r=await fetch(`https://api.twelvedata.com/quote?${qs}`,{signal:AbortSignal.timeout(8000)});
-      const d=await r.json().catch(()=>null);
-      if(d && (d.code||d.status==='error')){ tdUltimoErrore=(d.message||'errore '+d.code).slice(0,160); continue; }
-      if(!r.ok){ tdUltimoErrore='HTTP '+r.status; continue; }
-      const price=parseFloat(d?.close ?? d?.previous_close);
-      if(price>0) return {price, currency:d.currency||'EUR', symbol:ticker.toUpperCase(), source:'Twelve Data'};
-      if(d) tdUltimoErrore='risposta senza prezzo';
-    }catch(e){ tdUltimoErrore=e.name==='TimeoutError'?'timeout':(e.message||'errore di rete').slice(0,120); }
-  }
-  return null;
-}
-
 async function fetchYahoo(ticker, noto){
   const hasSuffix=/\.[A-Z]{1,2}$/i.test(ticker);
   const base=ticker.replace(/\.[A-Z]{1,2}$/i,'').toUpperCase();
@@ -4504,8 +4210,7 @@ const REFRESH_MAX_MS=45000;         // oltre questo tempo si smette comunque di 
 async function _updateOne(inv){
   const ticker=extractTicker(inv.name)||inv.name;
   try{
-    let res=await fetchTwelveData(inv.resolvedSymbol||ticker);
-    if(!res) res=await fetchYahoo(ticker, inv.resolvedSymbol);
+    let res=await fetchYahoo(ticker, inv.resolvedSymbol);
     if(!res) res=await fetchStooq(ticker);
     if(!res && inv.isin) res=await fetchJustETF(inv, inv.current||inv.price);
     // Se la quotazione arriva in un'altra valuta la converto in euro,
@@ -4618,12 +4323,6 @@ function resetBorse(){
 }
 
 // ── DIAGNOSTICA: prova le fonti una per una e racconta cosa risponde ──
-function salvaTdKey(){
-  state.twelveKey=document.getElementById('td-key').value.trim()||null;
-  saveState(); closeModal('prezziModal'); renderSettings();
-  toast(state.twelveKey?'Chiave salvata — riprova l\'aggiornamento':'Chiave rimossa','ok');
-}
-
 async function diagnosticaPrezzi(){
   const body=document.getElementById('diag-body');
   openModal('diagModal');
@@ -4679,17 +4378,11 @@ async function diagnosticaPrezzi(){
     <strong>Proxy pubblici</strong>: ${proxyVivi.length}/${CORS_PROXIES.length}${proxyVivi.length?' (n. '+proxyVivi.join(', ')+')':''}
     ${proxyVivi.length?'':'<div style="color:var(--text3);font-size:12px">Sono gratuiti e spesso offline: usa il ponte Apps Script.</div>'}
   </div>`);
-  righe.push(`<div style="padding:8px 0;border-bottom:1px solid var(--border)">
-    <strong>Twelve Data</strong>: ${state.twelveKey?'chiave configurata':'<span style="color:var(--text3)">non configurata</span>'}
-    <div style="color:var(--text3);font-size:12px">Il piano gratuito copre solo mercati USA, forex e crypto: le borse europee no.</div>
-  </div>`);
 
   // 2. Fonte per fonte, titolo per titolo
   for(const inv of others.slice(0,8)){
     const ticker=extractTicker(inv.name)||inv.name;
     const esiti=[];
-    const td=await fetchTwelveData(inv.resolvedSymbol||ticker);
-    esiti.push(`Twelve Data: ${td?'€'+fmt(td.price)+' '+(td.currency||''):(state.twelveKey?(tdUltimoErrore||'nessun dato'):'saltata')}`);
     const yh=await fetchYahoo(ticker, inv.resolvedSymbol);
     if(yh && (yh.currency||'EUR').toUpperCase()!=='EUR'){
       const t=await fetchFxRate(yh.currency);
@@ -4702,7 +4395,7 @@ async function diagnosticaPrezzi(){
     esiti.push(`Stooq: ${st?'€'+fmt(st.price):(yh?'non provata':'nessun dato')}`);
     let je=null; if(!yh && !st && inv.isin) je=await fetchJustETF(inv, inv.current||inv.price);
     esiti.push(`JustETF: ${je?'€'+fmt(je.price):(inv.isin?(yh||st?'non provata':'nessun dato'):'ISIN mancante')}`);
-    const vinto=td||yh||st||je;
+    const vinto=yh||st||je;
     righe.push(`<div style="padding:10px 0;border-bottom:1px solid var(--border)">
       <div style="font-weight:600">${esc(inv.name)} ${vinto?'✅':'❌'}</div>
       <div style="color:var(--text3);font-size:12px">ticker usato: ${esc(ticker)}${inv.resolvedSymbol?' · noto: '+esc(inv.resolvedSymbol):''}${inv.isin?' · ISIN '+esc(inv.isin):''}</div>
