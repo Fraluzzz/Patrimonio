@@ -677,7 +677,7 @@ select.form-input{cursor:pointer}
 
   <div class="section" style="padding-bottom:24px">
     <div style="text-align:center;font-size:12px;color:var(--text3);line-height:1.7">
-      Patrimonio v6.16<br>
+      Patrimonio v6.17<br>
       I dati sono salvati solo su questo dispositivo
     </div>
   </div>
@@ -2842,8 +2842,16 @@ function eseguiCorrezione(file){
         idx.get(k).push(t);
       });
 
-      let corrette=0, invariate=0, nonTrovate=0;
+      let corrette=0, invariate=0, nonTrovate=0, sfasate=0;
       const dettaglio=new Map();
+      const daRidatare=[];   // trovate solo spostando la data di un giorno
+
+      /** Sposta una data aaaa-mm-gg di n giorni */
+      const spostaData=(ds,n)=>{
+        const [y,m,d]=ds.split('-').map(Number);
+        const dt=new Date(y,m-1,d+n);
+        return isoLocale(dt);
+      };
 
       const leggi=(nomeFoglio,tipo)=>{
         const ws=wb.Sheets[nomeFoglio]; if(!ws) return;
@@ -2870,10 +2878,20 @@ function eseguiCorrezione(file){
           const co=CATEGORIES.find(c=>c.id===nuova);
           if(!co || (co.tipo||'uscita')!==tipo) nuova=catFallback(tipo);
 
-          const k=ds+'|'+Math.round(amt*100)+'|'+tipo;
-          const cand=idx.get(k);
+          const cents=Math.round(amt*100);
+          // Le prime importazioni convertivano le date con toISOString(): a
+          // Roma o Madrid la mezzanotte diventa il giorno prima. Se non trovo
+          // corrispondenza esatta provo lo scarto di un giorno.
+          let cand=idx.get(ds+'|'+cents+'|'+tipo), scarto=0;
+          if(!cand||!cand.length){
+            for(const n of [-1,1]){
+              const alt=idx.get(spostaData(ds,n)+'|'+cents+'|'+tipo);
+              if(alt&&alt.length){ cand=alt; scarto=n; break; }
+            }
+          }
           if(!cand||!cand.length){ nonTrovate++; continue; }
           const t=cand.shift();          // consuma: gestisce eventuali doppioni
+          if(scarto){ sfasate++; daRidatare.push([t,ds]); }
           if(t.cat===nuova){ invariate++; continue; }
           const da=CATEGORIES.find(c=>c.id===t.cat);
           const a=CATEGORIES.find(c=>c.id===nuova);
@@ -2887,7 +2905,17 @@ function eseguiCorrezione(file){
       if(fixScope!=='entrate') leggi('Spese','uscita');
       if(fixScope!=='uscite')  leggi('Entrate','entrata');
 
-      if(corrette) { saveState(); renderAll(); scheduleSync(); }
+      // Se molte transazioni erano spostate di un giorno, offro di raddrizzarle:
+      // una data sbagliata cambia il mese di appartenenza e falsa i totali.
+      let ridatate=0;
+      if(daRidatare.length && confirm(
+          `${daRidatare.length} transazioni hanno nell'app una data diversa di un giorno da quella del file.\n\n`+
+          `È un errore di conversione delle vecchie importazioni: alcune spese risultano nel mese sbagliato.\n\n`+
+          `Vuoi correggere anche le date?`)){
+        daRidatare.forEach(([t,ds])=>{ t.date=ds; ridatate++; });
+      }
+
+      if(corrette||ridatate) { saveState(); renderAll(); scheduleSync(); }
 
       const righe=[...dettaglio.entries()].sort((a,b)=>b[1]-a[1])
         .map(([k,n])=>`  ${n}×  ${k}`).join('\n');
@@ -2897,6 +2925,7 @@ function eseguiCorrezione(file){
         `${corrette} transazioni riclassificate\n`+
         `${invariate} già corrette\n`+
         `${nonTrovate} righe del file senza corrispondenza nell'app\n`+
+        (sfasate?`${sfasate} trovate con la data spostata di un giorno${ridatate?` · ${ridatate} date corrette`:' · date lasciate com\'erano'}\n`:'')+
         `\nLe transazioni inserite dopo l'export non sono state toccate.\n`+
         (righe?`\nSpostamenti:\n${righe}`:'')
       );
