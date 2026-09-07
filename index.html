@@ -650,7 +650,7 @@ select.form-input{cursor:pointer}
 
   <div class="section" style="padding-bottom:24px">
     <div style="text-align:center;font-size:12px;color:var(--text3);line-height:1.7">
-      Patrimonio v7.1<br>
+      Patrimonio v7.2<br>
       I dati sono salvati solo su questo dispositivo
     </div>
   </div>
@@ -879,6 +879,39 @@ select.form-input{cursor:pointer}
     <button class="btn-secondary" onclick="detailEdit()">Modifica</button>
     <button class="btn-danger" onclick="detailDelete()">Elimina investimento</button>
     <button class="btn-secondary" onclick="closeModal('investDetailModal')">Chiudi</button>
+  </div>
+</div>
+
+<!-- MODAL: CHIUSURA CREDITO/DEBITO -->
+<div class="modal-overlay" id="saldaModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Segna come saldato</div>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:16px" id="salda-titolo"></p>
+    <div class="form-group">
+      <label class="form-label">SU QUALE CONTO</label>
+      <select class="form-input" id="salda-conto"><option value="">Nessun movimento su conto</option></select>
+      <div style="font-size:12px;color:var(--text3);margin-top:6px">Può essere diverso da quello usato all'apertura: capita di prestare in contanti e farsi restituire con bonifico.</div>
+    </div>
+    <div class="form-group"><label class="form-label">DATA</label><input type="date" class="form-input" id="salda-data"></div>
+    <button class="btn-primary" onclick="confermaSalda()">Conferma</button>
+    <button class="btn-secondary" onclick="closeModal('saldaModal')">Annulla</button>
+  </div>
+</div>
+
+<!-- MODAL: COLLEGA MOVIMENTO A CREDITO/DEBITO -->
+<div class="modal-overlay" id="linkDebitoModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">È un prestito</div>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.6" id="link-titolo"></p>
+    <div id="link-lista"></div>
+    <div class="form-group" style="margin-top:14px">
+      <label class="form-label">OPPURE APRINE UNO NUOVO</label>
+      <input type="text" class="form-input" id="link-persona" placeholder="Nome della persona">
+    </div>
+    <button class="btn-primary" onclick="creaDebitoDaMovimento()">Apri un nuovo credito/debito</button>
+    <button class="btn-secondary" onclick="closeModal('linkDebitoModal')">Solo il movimento, grazie</button>
   </div>
 </div>
 
@@ -1265,6 +1298,12 @@ function catsPerTipo(tipo){
   return CATEGORIES.filter(c=>(c.tipo||'uscita')===tipo);
 }
 /** Categoria di ripiego valida per il tipo indicato */
+/** Un prestito è un flusso di cassa, non un consumo: non pesa mai sul budget,
+ *  né oggi né nei mesi passati. La regola guarda la categoria, così vale
+ *  anche per i movimenti importati dalla vecchia app. */
+const CAT_PRESTITO=new Set(['prestiti','prestiti_in']);
+function fuoriBudget(t){ return !!t.noBudget || CAT_PRESTITO.has(t.cat); }
+
 function catFallback(tipo){
   const l=catsPerTipo(tipo);
   const c = tipo==='entrata' ? (l.find(x=>x.id==='entrate')||l[0]) : (l.find(x=>x.id==='altro')||l[0]);
@@ -1595,6 +1634,7 @@ function renderCatPills(){
 
 // ── SAVE TRANSACTION ──────────────────────────────────────────
 function saveTransaction(){
+  let nuovoTxId=null;
   const wasEdit=!!editingTxId;
   const amount=parseFloat(document.getElementById('add-amount').value);
   const desc=document.getElementById('add-desc').value.trim();
@@ -1612,11 +1652,64 @@ function saveTransaction(){
     if(contoId){const c=state.conti.find(c=>c.id===contoId);if(c)c.saldo+=selectedType==='entrata'?amount:-amount;}
     editingTxId=null;
   } else {
-    state.transactions.push({id:nextId(),amount,desc,cat:selectedCat,type:selectedType,date:date||new Date().toISOString().split('T')[0],contoId,tag});
+    nuovoTxId=nextId();
+    state.transactions.push({id:nuovoTxId,amount,desc,cat:selectedCat,type:selectedType,date:date||isoLocale(new Date()),contoId,tag});
     if(contoId){const c=state.conti.find(c=>c.id===contoId);if(c)c.saldo+=selectedType==='entrata'?amount:-amount;}
   }
   snapshotPatrimonio();saveState();closeModal('addModal');renderAll();scheduleSync();
   toast(wasEdit?'Transazione aggiornata':(selectedType==='entrata'?'Entrata registrata':'Uscita registrata'),'ok');
+  if(nuovoTxId) proponiCollegamento(nuovoTxId);
+}
+
+// ── Dai movimenti ai crediti/debiti ────────────────────────────
+// È il verso più naturale: registri il movimento quando accade e, se riguarda
+// un prestito, decidi lì se chiude una posizione aperta o ne apre una nuova.
+let linkTxId=null;
+function proponiCollegamento(txId){
+  const t=state.transactions.find(x=>x.id===txId);
+  if(!t || !CAT_PRESTITO.has(t.cat) || t.debitoId) return;
+  linkTxId=txId;
+  // Un'uscita chiude un debito che avevi; un'entrata chiude un credito che vantavi
+  const cercati = t.type==='uscita' ? 'passivo' : 'attivo';
+  const aperti = (state.debiti||[]).filter(d=>!d.saldato && d.tipo===cercati);
+  document.getElementById('link-titolo').textContent =
+    `€${fmt(t.amount)} · ${t.desc}. Chiude una posizione aperta o ne apre una nuova?`;
+  document.getElementById('link-lista').innerHTML = aperti.length
+    ? aperti.map(d=>`<button class="row-tap" onclick="collegaAdEsistente(${d.id})">
+        <span class="row-main">
+          <span class="row-title">${esc(d.persona)}</span>
+          <span class="row-sub">${d.tipo==='attivo'?'ti deve':'gli devi'} €${fmt(d.amount)}${d.motivo?' · '+esc(d.motivo):''}</span>
+        </span>
+        <svg class="row-arrow"><use href="#i-chevron"/></svg>
+      </button>`).join('')
+    : '<div style="color:var(--text3);font-size:13px">Nessuna posizione aperta compatibile.</div>';
+  document.getElementById('link-persona').value='';
+  setTimeout(()=>openModal('linkDebitoModal'),250);
+}
+
+/** Il movimento ha già mosso il conto: qui si aggiorna solo la posizione. */
+function collegaAdEsistente(debitoId){
+  const t=state.transactions.find(x=>x.id===linkTxId);
+  const d=state.debiti.find(x=>x.id===debitoId);
+  if(!t||!d) return;
+  t.debitoId=d.id; t.fase='chiusura'; t.noBudget=true;
+  d.amount=Math.round((d.amount-t.amount)*100)/100;
+  if(d.amount<=0.005){ d.amount=0; d.saldato=true; d.contoChiusura=t.contoId; }
+  saveState();closeModal('linkDebitoModal');renderAll();scheduleSync();
+  toast(d.saldato?`Posizione con ${d.persona} chiusa`:`Restano €${fmt(d.amount)} con ${d.persona}`,'ok');
+}
+
+function creaDebitoDaMovimento(){
+  const t=state.transactions.find(x=>x.id===linkTxId); if(!t) return;
+  const persona=document.getElementById('link-persona').value.trim();
+  if(!persona) return toast('Inserisci il nome della persona','err');
+  const tipo = t.type==='uscita' ? 'attivo' : 'passivo';   // pago io = credito · incasso = debito
+  const id=nextId();
+  state.debiti.push({id,tipo,persona,amount:t.amount,motivo:t.desc,contoId:t.contoId,
+                     scadenza:'',note:'',saldato:false,dataCreazione:t.date});
+  t.debitoId=id; t.fase='apertura'; t.noBudget=true;
+  saveState();closeModal('linkDebitoModal');renderAll();scheduleSync();
+  toast(tipo==='attivo'?`Credito verso ${persona} aperto`:`Debito verso ${persona} aperto`,'ok');
 }
 
 function editTransaction(id){
@@ -2412,34 +2505,51 @@ function saveDebito(){
   snapshotPatrimonio();saveState();closeModal('debitoModal');renderAll();scheduleSync();
   toast(selectedDebitoType==='attivo'?'Credito registrato':'Debito registrato','ok');
 }
+let saldandoId=null;
 function toggleSaldato(id){
   const d=state.debiti.find(d=>d.id===id);
   if(!d)return;
-  if(d.contoId){
-    const conto=state.conti.find(c=>c.id===d.contoId);
-    if(conto){
-      if(!d.saldato){
-        // Segna come saldato → riversa il movimento (recupero del prestato / pagamento del debito)
-        conto.saldo+=d.tipo==='attivo'?d.amount:-d.amount;
-      } else {
-        // Riapre → ri-applica il movimento originale
-        conto.saldo+=d.tipo==='attivo'?-d.amount:d.amount;
-      }
-    }
-  }
   if(!d.saldato){
-    aggiungiMovimentoPrestito({
-      debitoId:d.id, fase:'chiusura',
-      type: d.tipo==='attivo' ? 'entrata' : 'uscita',
-      amount:d.amount, contoId:d.contoId, date:isoLocale(new Date()),
-      desc: (d.tipo==='attivo'?'Restituito da ':'Restituito a ')+d.persona
-    });
-  } else {
-    // Riapro: tolgo solo il movimento di chiusura, quello di apertura resta
-    state.transactions=state.transactions.filter(t=>!(t.debitoId===d.id&&t.fase==='chiusura'));
+    // Il rientro può arrivare su un conto diverso da quello del prestito
+    saldandoId=id;
+    document.getElementById('salda-titolo').textContent =
+      (d.tipo==='attivo'?'Restituzione da ':'Pagamento a ')+d.persona+' · €'+fmt(d.amount);
+    document.getElementById('salda-conto').innerHTML='<option value="">Nessun movimento su conto</option>'+
+      state.conti.map(c=>`<option value="${c.id}"${d.contoId===c.id?' selected':''}>${esc(c.name)} (€${fmt(c.saldo)})</option>`).join('');
+    document.getElementById('salda-data').value=isoLocale(new Date());
+    openModal('saldaModal');
+    return;
   }
-  d.saldato=!d.saldato;
+  riapriDebito(d);
+}
+
+function confermaSalda(){
+  const d=state.debiti.find(x=>x.id===saldandoId); if(!d) return;
+  const contoId=parseInt(document.getElementById('salda-conto').value)||null;
+  const data=document.getElementById('salda-data').value||isoLocale(new Date());
+  const conto=contoId?state.conti.find(c=>c.id===contoId):null;
+  if(conto) conto.saldo += d.tipo==='attivo' ? d.amount : -d.amount;
+  aggiungiMovimentoPrestito({
+    debitoId:d.id, fase:'chiusura',
+    type: d.tipo==='attivo' ? 'entrata' : 'uscita',
+    amount:d.amount, contoId, date:data,
+    desc: (d.tipo==='attivo'?'Restituito da ':'Restituito a ')+d.persona
+  });
+  d.saldato=true; d.contoChiusura=contoId;
+  snapshotPatrimonio();saveState();closeModal('saldaModal');renderAll();scheduleSync();
+  toast('Saldato','ok');
+}
+
+function riapriDebito(d){
+  const cid=d.contoChiusura!==undefined?d.contoChiusura:d.contoId;
+  if(cid){
+    const conto=state.conti.find(c=>c.id===cid);
+    if(conto) conto.saldo += d.tipo==='attivo' ? -d.amount : d.amount;
+  }
+  state.transactions=state.transactions.filter(t=>!(t.debitoId===d.id&&t.fase==='chiusura'));
+  d.saldato=false;
   snapshotPatrimonio();saveState();renderAll();scheduleSync();
+  toast('Riaperto','ok');
 }
 
 /** Movimento collegato a un credito/debito. Il saldo del conto è già stato
@@ -3328,17 +3438,17 @@ function renderSpese(){
   const uscite=txs.filter(t=>t.type==='uscita');
   const totUsc=uscite.reduce((s,t)=>s+t.amount,0);
   const totEnt=txs.filter(t=>t.type==='entrata').reduce((s,t)=>s+t.amount,0);
-  const prest=txs.filter(t=>t.noBudget).reduce((a,t)=>a+t.amount,0);
+  const prest=txs.filter(fuoriBudget).reduce((a,t)=>a+t.amount,0);
   const notaPrest = prest ? ` · <span class="hide-val">€${fmt(prest)}</span> prestiti` : '';
   document.getElementById('spese-total-label').innerHTML =
-    (txTypeFilter==='uscita'  ? `<span class="hide-val">€${fmt(totUsc-txs.filter(t=>t.noBudget&&t.type==='uscita').reduce((a,t)=>a+t.amount,0))}</span> di uscite`
-   : txTypeFilter==='entrata' ? `<span class="hide-val">€${fmt(totEnt-txs.filter(t=>t.noBudget&&t.type==='entrata').reduce((a,t)=>a+t.amount,0))}</span> di entrate`
+    (txTypeFilter==='uscita'  ? `<span class="hide-val">€${fmt(totUsc-txs.filter(t=>fuoriBudget(t)&&t.type==='uscita').reduce((a,t)=>a+t.amount,0))}</span> di uscite`
+   : txTypeFilter==='entrata' ? `<span class="hide-val">€${fmt(totEnt-txs.filter(t=>fuoriBudget(t)&&t.type==='entrata').reduce((a,t)=>a+t.amount,0))}</span> di entrate`
    : `<span class="hide-val">€${fmt(totUsc)}</span> uscite · <span class="hide-val">€${fmt(totEnt)}</span> entrate`) + notaPrest;
   // Budget bar: ha senso solo in modalità mese
   const budgetWrap=document.querySelector('.budget-bar-wrap');
   if(budgetWrap) budgetWrap.style.display=vm==='settimana'?'none':'block';
   // La barra del budget guarda sempre le uscite del periodo, indipendentemente dai filtri
-  const budgetUsc=periodTxs().filter(t=>t.type==='uscita'&&!t.noBudget).reduce((a,t)=>a+t.amount,0);
+  const budgetUsc=periodTxs().filter(t=>t.type==='uscita'&&!fuoriBudget(t)).reduce((a,t)=>a+t.amount,0);
   if(state.budget&&vm==='mese'){const totUsc=budgetUsc;const pct=Math.min((totUsc/state.budget)*100,100);const fill=document.getElementById('budget-bar-fill');fill.style.width=pct+'%';fill.className='budget-bar-fill '+(pct<70?'bar-ok':pct<90?'bar-warn':'bar-over');document.getElementById('budget-bar-left').innerHTML=`<span class="hide-val">€${fmt(totUsc)}</span> di <span class="hide-val">€${fmt(state.budget)}</span>`;document.getElementById('budget-bar-right').textContent=pct.toFixed(0)+'%';}
   else if(vm==='mese'){document.getElementById('budget-bar-left').textContent='Budget non impostato';document.getElementById('budget-bar-right').textContent='';document.getElementById('budget-bar-fill').style.width='0%';}
   // ── CONFRONTO PERIODO PRECEDENTE ──
@@ -3400,7 +3510,7 @@ function renderSpese(){
   }
   // Ripartizione per categoria: segue il tipo selezionato nel segmented control
   const gridTipo = txTypeFilter==='entrata' ? 'entrata' : 'uscita';
-  const gridTxs  = txs.filter(t=>t.type===gridTipo && !t.noBudget);
+  const gridTxs  = txs.filter(t=>t.type===gridTipo && !fuoriBudget(t));
   const gridTot  = gridTxs.reduce((s,t)=>s+t.amount,0);
   const gt=document.getElementById('cat-grid-title');
   if(gt) gt.textContent = gridTipo==='entrata' ? 'Entrate per categoria' : 'Uscite per categoria';
@@ -3426,7 +3536,7 @@ function renderSpese(){
         <span class="row-mark" style="background:${col}1f">${emoji}</span>
         <span class="row-main">
           <span class="row-title">${esc(t.desc)}</span>
-          <span class="row-sub">${esc((cat?.label||'').split(' ').slice(1).join(' '))}${conto?' · '+esc(conto.name):''}${t.debitoId?' <span class="tag-mini">credito/debito</span>':''}${tags.map(tg=>`<span class="tag-mini">${esc(tg)}</span>`).join('')}</span>
+          <span class="row-sub">${esc((cat?.label||'').split(' ').slice(1).join(' '))}${conto?' · '+esc(conto.name):''}${t.debitoId?' <span class="tag-mini">credito/debito</span>':(fuoriBudget(t)?' <span class="tag-mini">fuori budget</span>':'')}${tags.map(tg=>`<span class="tag-mini">${esc(tg)}</span>`).join('')}</span>
         </span>
         <span class="row-right">
           <span class="row-val hide-val" style="color:${t.type==='entrata'?'var(--green)':'var(--text)'}">${t.type==='entrata'?'+':'−'}€${fmt(t.amount)}</span>
