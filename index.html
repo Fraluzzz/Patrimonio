@@ -677,7 +677,7 @@ select.form-input{cursor:pointer}
 
   <div class="section" style="padding-bottom:24px">
     <div style="text-align:center;font-size:12px;color:var(--text3);line-height:1.7">
-      Patrimonio v6.15<br>
+      Patrimonio v6.16<br>
       I dati sono salvati solo su questo dispositivo
     </div>
   </div>
@@ -804,7 +804,10 @@ select.form-input{cursor:pointer}
     <div class="modal-title">Categoria</div>
     <p style="font-size:13px;color:var(--text2);margin-bottom:16px" id="split-cat-titolo"></p>
     <div class="cat-pills" id="split-cat-grid"></div>
-    <button class="btn-secondary" onclick="closeModal('splitCatModal')">Annulla</button>
+    <div class="section-title" style="padding:18px 0 8px">Tag di questa voce</div>
+    <p style="font-size:12px;color:var(--text3);margin-bottom:10px">Per attribuire solo la parte di qualcun altro. Se non tocchi nulla vale il tag dello scontrino.</p>
+    <div class="tag-picker" id="split-art-tag-picker"></div>
+    <button class="btn-primary" onclick="closeModal('splitCatModal');renderSplitEditor()">Fatto</button>
   </div>
 </div>
 
@@ -2020,7 +2023,8 @@ function renderSplitEditor(){
         <span class="art-mark" style="background:${col}22;color:${col}">${c?(c.label||'').split(' ')[0]:'?'}</span>
         <span class="art-main">
           <span class="art-name">${esc(a.nome)}</span>
-          <span class="art-cat">${c?esc(c.label.replace(/^\S+\s/,'')):'Scegli categoria'}
+          <span class="art-cat">${c?esc(c.label.replace(/^\S+\s/,'')):'Scegli categoria'}${
+            Array.isArray(a.tags) ? ' · '+(a.tags.length?esc(a.tags.join(', ')):'senza tag') : ''}
             <svg class="art-chev"><use href="#i-chevron"/></svg></span>
         </span>
       </button>
@@ -2047,10 +2051,14 @@ function gruppiSplit(){
   const m=new Map();
   splitData.articoli.forEach(a=>{
     if(!a.cat || cent(a.prezzo)<=0) return;
-    m.set(a.cat,(m.get(a.cat)||0)+cent(a.prezzo));
+    const tags=[...tagEffettivi(a)].sort();
+    const k=a.cat+'|'+tags.join(',');
+    const g=m.get(k)||{cat:a.cat,tags,c:0};
+    g.c+=cent(a.prezzo);
+    m.set(k,g);
   });
-  return [...m.entries()].map(([cat,c])=>({cat,importo:c/100}))
-                         .sort((x,y)=>y.importo-x.importo);
+  return [...m.values()].map(g=>({cat:g.cat,tags:g.tags,importo:g.c/100}))
+                        .sort((x,y)=>y.importo-x.importo);
 }
 
 function verificaQuadratura(){
@@ -2067,7 +2075,7 @@ function verificaQuadratura(){
         const q=totC?Math.round(cent(g.importo)/totC*100):0;
         return `<div class="grp-row">
           <span class="grp-emoji">${(c?.label||'').split(' ')[0]}</span>
-          <span class="grp-name">${esc((c?.label||g.cat).replace(/^\S+\s/,''))}</span>
+          <span class="grp-name">${esc((c?.label||g.cat).replace(/^\S+\s/,''))}${g.tags&&g.tags.length?' <span style="color:var(--text3)">· '+esc(g.tags.join(', '))+'</span>':''}</span>
           <span class="grp-pct">${q}%</span>
           <span class="grp-val">€${fmt(g.importo)}</span>
         </div>`;
@@ -2131,16 +2139,46 @@ function aggiungiArticoloDifferenza(){
 function cambiaCategoriaArticolo(i){
   artInModifica=i;
   document.getElementById('split-cat-titolo').textContent=splitData.articoli[i].nome;
+  renderArtCatGrid();
+  renderArtTagPicker();
+  openModal('splitCatModal');
+}
+function renderArtCatGrid(){
+  const i=artInModifica; if(i===null) return;
   document.getElementById('split-cat-grid').innerHTML=catsPerTipo('uscita').map(c=>
     `<button class="cat-pill${splitData.articoli[i].cat===c.id?' selected':''}" onclick="scegliCategoriaArticolo('${c.id}')">${c.label}</button>`
   ).join('');
-  openModal('splitCatModal');
 }
 function scegliCategoriaArticolo(id){
   if(artInModifica!==null) splitData.articoli[artInModifica].cat=id;
-  artInModifica=null;
-  closeModal('splitCatModal');
-  renderSplitEditor();
+  renderArtCatGrid();
+}
+
+/** Tag propri dell'articolo. null = eredita quelli dello scontrino. */
+function renderArtTagPicker(){
+  const i=artInModifica; if(i===null) return;
+  const a=splitData.articoli[i];
+  const propri=Array.isArray(a.tags)?a.tags:null;
+  const wrap=document.getElementById('split-art-tag-picker');
+  wrap.innerHTML=`<button class="tag-chip${propri===null?' selected':''}" onclick="artTagEredita()">Come lo scontrino</button>`
+    + `<button class="tag-chip${propri&&!propri.length?' selected':''}" onclick="artTagNessuno()">Nessuno</button>`
+    + allTags().map(t=>{
+        const on=!!propri&&propri.includes(t);
+        return `<button class="tag-chip${on?' selected':''}" onclick="artToggleTag('${esc(t).replace(/'/g,"\\'")}')">${on?'✓':'🔖'} ${esc(t)}</button>`;
+      }).join('');
+}
+function artTagEredita(){ splitData.articoli[artInModifica].tags=null; renderArtTagPicker(); }
+function artTagNessuno(){ splitData.articoli[artInModifica].tags=[]; renderArtTagPicker(); }
+function artToggleTag(t){
+  const a=splitData.articoli[artInModifica];
+  if(!Array.isArray(a.tags)) a.tags=[];
+  const k=a.tags.indexOf(t);
+  if(k>=0) a.tags.splice(k,1); else a.tags.push(t);
+  renderArtTagPicker();
+}
+/** Tag che finiranno davvero sulla transazione di questo articolo */
+function tagEffettivi(a){
+  return Array.isArray(a.tags) ? a.tags : splitData.tags;
 }
 
 function splitToggleTag(t){
@@ -2172,7 +2210,7 @@ function salvaSplit(){
       desc, cat: g.cat, type:'uscita',
       date: date||new Date().toISOString().split('T')[0],
       contoId,
-      tag: splitData.tags.length?[...splitData.tags]:null
+      tag: (g.tags&&g.tags.length)?[...g.tags]:null
     });
     if(conto) conto.saldo-=g.importo;
   });
@@ -4184,6 +4222,9 @@ const BF_CAT_MAP={
   'commissioni':'finanze','banca':'finanze','investimenti':'finanze',
   'interessi':'finanze','genitori':'altro','famiglia':'altro',
   'beneficenza':'altro','multe':'altro','altro':'altro',
+  'caffè':'cibo','caffe':'cibo','colazione':'cibo','pranzo':'cibo','cena':'cibo',
+  "gioco d'azzardo":'svago',"gioco d\u2019azzardo":'svago','scommesse':'svago',
+  'parrucchiere':'cura','estetista':'cura','farmacia':'salute','palestra':'sport',
 };
 function handleImportBF(e){const file=e.target.files[0];if(!file)return;if(!window.XLSX){const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';s.onload=()=>parseBFFile(file);s.onerror=()=>toast('Errore di rete: riprova','err');document.head.appendChild(s);}else parseBFFile(file);e.target.value='';}
 function parseBFFile(file){
