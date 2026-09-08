@@ -651,7 +651,7 @@ select.form-input{cursor:pointer}
 
   <div class="section" style="padding-bottom:24px">
     <div style="text-align:center;font-size:12px;color:var(--text3);line-height:1.7">
-      Patrimonio v7.3<br>
+      Patrimonio v7.4<br>
       I dati sono salvati solo su questo dispositivo
     </div>
   </div>
@@ -3441,15 +3441,20 @@ function renderSpese(){
   const uscite=txs.filter(t=>t.type==='uscita'&&!fuoriBudget(t));
   const totUsc=uscite.reduce((s,t)=>s+t.amount,0);
   const totEnt=txs.filter(t=>t.type==='entrata'&&!fuoriBudget(t)).reduce((s,t)=>s+t.amount,0);
-  const prest=txs.filter(fuoriBudget).reduce((a,t)=>a+t.amount,0);
+  // Sommare prestiti dati e rientrati non significherebbe niente: si mostrano distinti
+  const prestOut=txs.filter(t=>fuoriBudget(t)&&t.type==='uscita').reduce((a,t)=>a+t.amount,0);
+  const prestIn =txs.filter(t=>fuoriBudget(t)&&t.type==='entrata').reduce((a,t)=>a+t.amount,0);
   document.getElementById('spese-total-label').innerHTML =
     txTypeFilter==='uscita'  ? `<span class="hide-val">€${fmt(totUsc)}</span> di uscite`
   : txTypeFilter==='entrata' ? `<span class="hide-val">€${fmt(totEnt)}</span> di entrate`
   : `<span class="hide-val">€${fmt(totUsc)}</span> uscite · <span class="hide-val">€${fmt(totEnt)}</span> entrate`;
   const notaEl=document.getElementById('prestiti-nota');
   if(notaEl){
-    notaEl.style.display = prest ? 'block' : 'none';
-    if(prest) notaEl.innerHTML=`<span class="hide-val">€${fmt(prest)}</span> di prestiti, esclusi dal budget`;
+    const pezzi=[];
+    if(prestOut && txTypeFilter!=='entrata') pezzi.push(`<span class="hide-val">€${fmt(prestOut)}</span> prestati`);
+    if(prestIn  && txTypeFilter!=='uscita')  pezzi.push(`<span class="hide-val">€${fmt(prestIn)}</span> rientrati`);
+    notaEl.style.display = pezzi.length ? 'block' : 'none';
+    if(pezzi.length) notaEl.innerHTML = pezzi.join(' · ')+', fuori budget';
   }
   // Budget bar: ha senso solo in modalità mese
   const budgetWrap=document.querySelector('.budget-bar-wrap');
@@ -3482,6 +3487,11 @@ function renderSpese(){
       const pctUsc=prevUsc>0?((diffUsc/prevUsc)*100):0;
       const diffEnt=totEnt-prevEnt;
       const pctEnt=prevEnt>0?((diffEnt/prevEnt)*100):0;
+      // Sotto i 10 € di base una variazione percentuale è solo rumore:
+      // marzo con 1,74 € di entrate produceva un +61251% privo di senso.
+      const SOGLIA=10;
+      const uscPct = prevUsc>=SOGLIA ? Math.abs(pctUsc).toFixed(0)+'%' : '—';
+      const entPct = prevEnt>=SOGLIA ? Math.abs(pctEnt).toFixed(0)+'%' : '—';
       // Per le uscite: meno è meglio (verde se diminuito)
       const uscColor=diffUsc<=0?'var(--green)':'var(--red)';
       const uscArrow=diffUsc<=0?'▼':'▲';
@@ -3492,14 +3502,14 @@ function renderSpese(){
         <div style="display:flex;gap:14px">
           <div style="flex:1">
             <div style="font-size:11px;color:var(--text2);margin-bottom:4px">Uscite</div>
-            <div style="font-size:15px;font-weight:700;color:${uscColor}">${uscArrow} ${Math.abs(pctUsc).toFixed(0)}%</div>
+            <div style="font-size:15px;font-weight:700;color:${uscColor}">${prevUsc>=SOGLIA?uscArrow+' '+uscPct:uscPct}</div>
             <div class="hide-val" style="font-size:11px;color:var(--text3);margin-top:2px">${diffUsc>=0?'+':'−'}€${fmt(Math.abs(diffUsc))}</div>
           </div>
           <div style="width:1px;background:var(--border)"></div>
           <div style="flex:1">
             <div style="font-size:11px;color:var(--text2);margin-bottom:4px">Entrate</div>
-            <div style="font-size:15px;font-weight:700;color:${entColor}">${prevEnt>0?entArrow+' '+Math.abs(pctEnt).toFixed(0)+'%':'–'}</div>
-            <div class="hide-val" style="font-size:11px;color:var(--text3);margin-top:2px">${prevEnt>0?(diffEnt>=0?'+':'−')+'€'+fmt(Math.abs(diffEnt)):'nessun dato'}</div>
+            <div style="font-size:15px;font-weight:700;color:${entColor}">${prevEnt>=SOGLIA?entArrow+' '+entPct:entPct}</div>
+            <div class="hide-val" style="font-size:11px;color:var(--text3);margin-top:2px">${prevEnt>0?(diffEnt>=0?'+':'−')+'€'+fmt(Math.abs(diffEnt)):'nessun dato'}${prevEnt>0&&prevEnt<SOGLIA?' · base minima':''}</div>
           </div>
           <div style="width:1px;background:var(--border)"></div>
           <div style="flex:1">
