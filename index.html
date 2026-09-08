@@ -434,6 +434,7 @@ select.form-input{cursor:pointer}
   </div>
   <div class="budget-bar-wrap">
     <div class="budget-bar-label"><span id="budget-bar-left">Budget</span><span id="budget-bar-right"></span></div>
+    <div id="prestiti-nota" style="display:none;font-size:11px;color:var(--text3);margin-top:7px"></div>
     <div class="budget-bar-track"><div class="budget-bar-fill bar-ok" id="budget-bar-fill" style="width:0%"></div></div>
   </div>
   <!-- Confronto periodo precedente -->
@@ -650,7 +651,7 @@ select.form-input{cursor:pointer}
 
   <div class="section" style="padding-bottom:24px">
     <div style="text-align:center;font-size:12px;color:var(--text3);line-height:1.7">
-      Patrimonio v7.2<br>
+      Patrimonio v7.3<br>
       I dati sono salvati solo su questo dispositivo
     </div>
   </div>
@@ -3361,8 +3362,8 @@ function renderDashboard(){
   // Month stats
   const now=new Date();
   const mTxs=state.transactions.filter(t=>{const d=new Date(t.date);return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();});
-  const ent=mTxs.filter(t=>t.type==='entrata').reduce((s,t)=>s+t.amount,0);
-  const usc=mTxs.filter(t=>t.type==='uscita').reduce((s,t)=>s+t.amount,0);
+  const ent=mTxs.filter(t=>t.type==='entrata'&&!fuoriBudget(t)).reduce((s,t)=>s+t.amount,0);
+  const usc=mTxs.filter(t=>t.type==='uscita'&&!fuoriBudget(t)).reduce((s,t)=>s+t.amount,0);
   const saldo=ent-usc;
   document.getElementById('qs-entrate').textContent='+€'+fmt(ent);document.getElementById('qs-entrate').className='quick-stat-val pos hide-val';
   document.getElementById('qs-spese').textContent='-€'+fmt(usc);document.getElementById('qs-spese').className='quick-stat-val neg hide-val';
@@ -3435,15 +3436,21 @@ function renderSpese(){
   if(rst) rst.style.display=(filterCat||filterTag||search||txTypeFilter)?'block':'none';
   const clr=document.getElementById('tx-search-clear');
   if(clr) clr.style.display=search?'block':'none';
-  const uscite=txs.filter(t=>t.type==='uscita');
+  // I prestiti restano fuori dai totali: non sono spese né guadagni.
+  // Compaiono in una riga a parte sotto la barra, dove la spiegazione serve.
+  const uscite=txs.filter(t=>t.type==='uscita'&&!fuoriBudget(t));
   const totUsc=uscite.reduce((s,t)=>s+t.amount,0);
-  const totEnt=txs.filter(t=>t.type==='entrata').reduce((s,t)=>s+t.amount,0);
+  const totEnt=txs.filter(t=>t.type==='entrata'&&!fuoriBudget(t)).reduce((s,t)=>s+t.amount,0);
   const prest=txs.filter(fuoriBudget).reduce((a,t)=>a+t.amount,0);
-  const notaPrest = prest ? ` · <span class="hide-val">€${fmt(prest)}</span> prestiti` : '';
   document.getElementById('spese-total-label').innerHTML =
-    (txTypeFilter==='uscita'  ? `<span class="hide-val">€${fmt(totUsc-txs.filter(t=>fuoriBudget(t)&&t.type==='uscita').reduce((a,t)=>a+t.amount,0))}</span> di uscite`
-   : txTypeFilter==='entrata' ? `<span class="hide-val">€${fmt(totEnt-txs.filter(t=>fuoriBudget(t)&&t.type==='entrata').reduce((a,t)=>a+t.amount,0))}</span> di entrate`
-   : `<span class="hide-val">€${fmt(totUsc)}</span> uscite · <span class="hide-val">€${fmt(totEnt)}</span> entrate`) + notaPrest;
+    txTypeFilter==='uscita'  ? `<span class="hide-val">€${fmt(totUsc)}</span> di uscite`
+  : txTypeFilter==='entrata' ? `<span class="hide-val">€${fmt(totEnt)}</span> di entrate`
+  : `<span class="hide-val">€${fmt(totUsc)}</span> uscite · <span class="hide-val">€${fmt(totEnt)}</span> entrate`;
+  const notaEl=document.getElementById('prestiti-nota');
+  if(notaEl){
+    notaEl.style.display = prest ? 'block' : 'none';
+    if(prest) notaEl.innerHTML=`<span class="hide-val">€${fmt(prest)}</span> di prestiti, esclusi dal budget`;
+  }
   // Budget bar: ha senso solo in modalità mese
   const budgetWrap=document.querySelector('.budget-bar-wrap');
   if(budgetWrap) budgetWrap.style.display=vm==='settimana'?'none':'block';
@@ -3467,8 +3474,8 @@ function renderSpese(){
       prevTxs=state.transactions.filter(t=>{const d=new Date(t.date);return d>=start&&d<=end;});
       prevLabel='settimana precedente';
     }
-    const prevUsc=prevTxs.filter(t=>t.type==='uscita').reduce((s,t)=>s+t.amount,0);
-    const prevEnt=prevTxs.filter(t=>t.type==='entrata').reduce((s,t)=>s+t.amount,0);
+    const prevUsc=prevTxs.filter(t=>t.type==='uscita'&&!fuoriBudget(t)).reduce((s,t)=>s+t.amount,0);
+    const prevEnt=prevTxs.filter(t=>t.type==='entrata'&&!fuoriBudget(t)).reduce((s,t)=>s+t.amount,0);
 
     if(prevUsc>0||prevEnt>0){
       const diffUsc=totUsc-prevUsc;
@@ -4050,7 +4057,7 @@ function exportPDF(){
   // Usa il mese attualmente visualizzato nei Movimenti
   const targetMonth=state.currentMonth, targetYear=state.currentYear;
   const mTxs=state.transactions.filter(t=>{const d=new Date(t.date);return d.getMonth()===targetMonth&&d.getFullYear()===targetYear;});
-  const usc=mTxs.filter(t=>t.type==='uscita'),ent=mTxs.filter(t=>t.type==='entrata');
+  const usc=mTxs.filter(t=>t.type==='uscita'&&!fuoriBudget(t)),ent=mTxs.filter(t=>t.type==='entrata'&&!fuoriBudget(t));
   const totU=usc.reduce((s,t)=>s+t.amount,0),totE=ent.reduce((s,t)=>s+t.amount,0);
   const cash=state.conti.reduce((s,c)=>s+c.saldo,0);
   const inv=state.investments.reduce((s,i)=>s+i.qty*i.current,0);
