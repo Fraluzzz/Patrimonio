@@ -230,8 +230,10 @@ select.form-input{cursor:pointer}
 .art-tap:active{opacity:.6}
 .art-mark{width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
 .art-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
-.art-name{font-size:14px;font-weight:600;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.art-cat{font-size:12px;color:var(--text2);display:flex;align-items:center;gap:3px}
+.art-name{font-size:14px;font-weight:600;line-height:1.3;width:100%;background:none;border:none;border-bottom:1px solid transparent;color:var(--text);font-family:inherit;padding:1px 0;outline:none;text-overflow:ellipsis}
+.art-name:focus{border-bottom-color:var(--blue)}
+.art-cat{font-size:12px;color:var(--text2);display:flex;align-items:center;gap:3px;background:none;border:none;font-family:inherit;padding:2px 0;cursor:pointer;text-align:left}
+.art-mark{cursor:pointer}
 .art-chev{width:11px;height:11px;opacity:.5;flex-shrink:0}
 .art-amount{width:82px;flex-shrink:0;background:var(--bg3);border:1px solid var(--border);border-radius:9px;padding:9px 8px;color:var(--text);font-size:15px;font-family:inherit;text-align:right;outline:none;font-variant-numeric:tabular-nums}
 .art-amount:focus{border-color:var(--accent)}
@@ -651,7 +653,7 @@ select.form-input{cursor:pointer}
 
   <div class="section" style="padding-bottom:24px">
     <div style="text-align:center;font-size:12px;color:var(--text3);line-height:1.7">
-      Patrimonio v7.6<br>
+      Patrimonio v7.7<br>
       I dati sono salvati solo su questo dispositivo
     </div>
   </div>
@@ -1943,7 +1945,7 @@ function normalizzaScontrino(p){
 
   let articoli=(Array.isArray(p.articoli)?p.articoli:[])
     .map(a=>({
-      nome: String(a.nome||'').slice(0,34).trim()||'Articolo',
+      nome: String(a.nome||'').slice(0,40).trim()||'Articolo',
       prezzo: Math.round(num(a.prezzo)*100)/100,
       cat: catsPerTipo('uscita').some(c=>c.id===a.categoria) ? a.categoria : null
     }))
@@ -2051,15 +2053,14 @@ function renderSplitEditor(){
     const c=a.cat?CATEGORIES.find(x=>x.id===a.cat):null;
     const col=c?c.color:'#F59E0B';
     return `<div class="art-row${c?'':' art-todo'}">
-      <button class="art-tap" onclick="cambiaCategoriaArticolo(${i})">
-        <span class="art-mark" style="background:${col}22;color:${col}">${c?(c.label||'').split(' ')[0]:'?'}</span>
-        <span class="art-main">
-          <span class="art-name">${esc(a.nome)}</span>
-          <span class="art-cat">${c?esc(c.label.replace(/^\S+\s/,'')):'Scegli categoria'}${
-            Array.isArray(a.tags) ? ' · '+(a.tags.length?esc(a.tags.join(', ')):'senza tag') : ''}
-            <svg class="art-chev"><use href="#i-chevron"/></svg></span>
-        </span>
-      </button>
+      <span class="art-mark" style="background:${col}22;color:${col}" onclick="cambiaCategoriaArticolo(${i})">${c?(c.label||'').split(' ')[0]:'?'}</span>
+      <span class="art-main">
+        <input type="text" class="art-name" value="${esc(a.nome)}" placeholder="Nome articolo"
+               oninput="aggiornaNomeArticolo(${i},this.value)" aria-label="Nome articolo">
+        <button class="art-cat" onclick="cambiaCategoriaArticolo(${i})">${c?esc(c.label.replace(/^\S+\s/,'')):'Scegli categoria'}${
+          Array.isArray(a.tags) ? ' · '+(a.tags.length?esc(a.tags.join(', ')):'senza tag') : ''}
+          <svg class="art-chev"><use href="#i-chevron"/></svg></button>
+      </span>
       <input type="number" class="art-amount" value="${a.prezzo}" step="0.01" inputmode="decimal"
              oninput="aggiornaPrezzoArticolo(${i},this.value)" aria-label="Prezzo">
       <button class="art-del" onclick="rimuoviArticolo(${i})" aria-label="Rimuovi">
@@ -2154,10 +2155,18 @@ function aggiornaTotaleScontrino(v){
   verificaQuadratura();
 }
 function rimuoviArticolo(i){ splitData.articoli.splice(i,1); renderSplitEditor(); }
+function aggiornaNomeArticolo(i,v){
+  splitData.articoli[i].nome=v.slice(0,40);
+}
 function aggiungiArticolo(){
-  splitData.articoli.push({nome:'Nuovo articolo', prezzo:0, cat:null});
+  splitData.articoli.push({nome:'', prezzo:0, cat:null});
   renderSplitEditor();
-  setTimeout(()=>cambiaCategoriaArticolo(splitData.articoli.length-1),150);
+  // Il cursore va subito sul nome: è la prima cosa da scrivere
+  setTimeout(()=>{
+    const campi=document.querySelectorAll('#split-rows .art-name');
+    const ultimo=campi[campi.length-1];
+    if(ultimo){ ultimo.focus(); ultimo.scrollIntoView({block:'center',behavior:'smooth'}); }
+  },80);
 }
 function aggiungiArticoloDifferenza(){
   const sommaC=splitData.articoli.reduce((s,a)=>s+cent(a.prezzo),0);
@@ -2170,7 +2179,7 @@ function aggiungiArticoloDifferenza(){
 
 function cambiaCategoriaArticolo(i){
   artInModifica=i;
-  document.getElementById('split-cat-titolo').textContent=splitData.articoli[i].nome;
+  document.getElementById('split-cat-titolo').textContent=splitData.articoli[i].nome||'Nuovo articolo';
   renderArtCatGrid();
   renderArtTagPicker();
   openModal('splitCatModal');
