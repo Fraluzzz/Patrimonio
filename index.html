@@ -651,7 +651,7 @@ select.form-input{cursor:pointer}
 
   <div class="section" style="padding-bottom:24px">
     <div style="text-align:center;font-size:12px;color:var(--text3);line-height:1.7">
-      Patrimonio v7.5<br>
+      Patrimonio v7.6<br>
       I dati sono salvati solo su questo dispositivo
     </div>
   </div>
@@ -1168,6 +1168,7 @@ select.form-input{cursor:pointer}
     <div class="form-group"><label class="form-label">PERSONA / ENTE</label><input type="text" class="form-input" id="debito-persona" placeholder="es. Marco, Airbnb"></div>
     <div class="form-group"><label class="form-label">IMPORTO (€)</label><input type="number" class="form-input" id="debito-amount" placeholder="0.00" step="0.01" inputmode="decimal"></div>
     <div class="form-group"><label class="form-label">MOTIVO</label><input type="text" class="form-input" id="debito-motivo" placeholder="es. Cena, affitto, prestito"></div>
+    <div class="form-group"><label class="form-label">DATA</label><input type="date" class="form-input" id="debito-data"></div>
     <div class="form-group"><label class="form-label">CONTO COLLEGATO <span class="no-data-badge">opzionale</span></label><select class="form-input" id="debito-conto"><option value="">Nessun movimento su conto</option></select></div>
     <div class="form-group"><label class="form-label">SCADENZA <span class="no-data-badge">opzionale</span></label><input type="date" class="form-input" id="debito-scadenza"></div>
     <div class="form-group"><label class="form-label">NOTE <span class="no-data-badge">opzionale</span></label><input type="text" class="form-input" id="debito-note" placeholder="es. Da restituire in due rate"></div>
@@ -2475,6 +2476,7 @@ function saveBudget(){const v=parseFloat(document.getElementById('budget-input')
 function initDebitoModal(){
   selectedDebitoType='attivo';
   ['persona','amount','motivo','scadenza','note'].forEach(f=>document.getElementById('debito-'+f).value='');
+  document.getElementById('debito-data').value=isoLocale(new Date());
   document.getElementById('dtype-attivo').classList.add('selected');
   document.getElementById('dtype-passivo').classList.remove('selected');
   const cSel=document.getElementById('debito-conto');
@@ -2499,7 +2501,7 @@ function saveDebito(){
       conto.saldo+=selectedDebitoType==='attivo'?-amount:amount;
     }
   }
-  const dataCreazione=isoLocale(new Date());
+  const dataCreazione=document.getElementById('debito-data').value||isoLocale(new Date());
   const debitoId=nextId();
   state.debiti.push({id:debitoId,tipo:selectedDebitoType,persona,amount,motivo,contoId,scadenza,note,saldato:false,dataCreazione});
   // Il movimento compare nell'elenco (è un flusso di cassa reale) ma non pesa
