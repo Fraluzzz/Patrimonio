@@ -651,7 +651,7 @@ select.form-input{cursor:pointer}
 
   <div class="section" style="padding-bottom:24px">
     <div style="text-align:center;font-size:12px;color:var(--text3);line-height:1.7">
-      Patrimonio v7.4<br>
+      Patrimonio v7.5<br>
       I dati sono salvati solo su questo dispositivo
     </div>
   </div>
@@ -1305,6 +1305,13 @@ function catsPerTipo(tipo){
 const CAT_PRESTITO=new Set(['prestiti','prestiti_in']);
 function fuoriBudget(t){ return !!t.noBudget || CAT_PRESTITO.has(t.cat); }
 
+/** Quanto manca ancora su un credito/debito. L'importo originale non viene mai
+ *  toccato: le restituzioni si accumulano in `rimborsato`, così riaprendo una
+ *  posizione si sa sempre da dove si era partiti. */
+function residuoDebito(d){
+  return Math.round((d.amount-(d.rimborsato||0))*100)/100;
+}
+
 function catFallback(tipo){
   const l=catsPerTipo(tipo);
   const c = tipo==='entrata' ? (l.find(x=>x.id==='entrate')||l[0]) : (l.find(x=>x.id==='altro')||l[0]);
@@ -1679,7 +1686,7 @@ function proponiCollegamento(txId){
     ? aperti.map(d=>`<button class="row-tap" onclick="collegaAdEsistente(${d.id})">
         <span class="row-main">
           <span class="row-title">${esc(d.persona)}</span>
-          <span class="row-sub">${d.tipo==='attivo'?'ti deve':'gli devi'} €${fmt(d.amount)}${d.motivo?' · '+esc(d.motivo):''}</span>
+          <span class="row-sub">${d.tipo==='attivo'?'ti deve':'gli devi'} €${fmt(residuoDebito(d))}${d.motivo?' · '+esc(d.motivo):''}</span>
         </span>
         <svg class="row-arrow"><use href="#i-chevron"/></svg>
       </button>`).join('')
@@ -1694,10 +1701,10 @@ function collegaAdEsistente(debitoId){
   const d=state.debiti.find(x=>x.id===debitoId);
   if(!t||!d) return;
   t.debitoId=d.id; t.fase='chiusura'; t.noBudget=true;
-  d.amount=Math.round((d.amount-t.amount)*100)/100;
-  if(d.amount<=0.005){ d.amount=0; d.saldato=true; d.contoChiusura=t.contoId; }
+  d.rimborsato=Math.round(((d.rimborsato||0)+t.amount)*100)/100;
+  if(residuoDebito(d)<=0.005) d.saldato=true;
   saveState();closeModal('linkDebitoModal');renderAll();scheduleSync();
-  toast(d.saldato?`Posizione con ${d.persona} chiusa`:`Restano €${fmt(d.amount)} con ${d.persona}`,'ok');
+  toast(d.saldato?`Posizione con ${d.persona} chiusa`:`Restano €${fmt(residuoDebito(d))} con ${d.persona}`,'ok');
 }
 
 function creaDebitoDaMovimento(){
@@ -2514,7 +2521,7 @@ function toggleSaldato(id){
     // Il rientro può arrivare su un conto diverso da quello del prestito
     saldandoId=id;
     document.getElementById('salda-titolo').textContent =
-      (d.tipo==='attivo'?'Restituzione da ':'Pagamento a ')+d.persona+' · €'+fmt(d.amount);
+      (d.tipo==='attivo'?'Restituzione da ':'Pagamento a ')+d.persona+' · €'+fmt(residuoDebito(d));
     document.getElementById('salda-conto').innerHTML='<option value="">Nessun movimento su conto</option>'+
       state.conti.map(c=>`<option value="${c.id}"${d.contoId===c.id?' selected':''}>${esc(c.name)} (€${fmt(c.saldo)})</option>`).join('');
     document.getElementById('salda-data').value=isoLocale(new Date());
@@ -2528,29 +2535,37 @@ function confermaSalda(){
   const d=state.debiti.find(x=>x.id===saldandoId); if(!d) return;
   const contoId=parseInt(document.getElementById('salda-conto').value)||null;
   const data=document.getElementById('salda-data').value||isoLocale(new Date());
+  const resto=residuoDebito(d);
   const conto=contoId?state.conti.find(c=>c.id===contoId):null;
-  if(conto) conto.saldo += d.tipo==='attivo' ? d.amount : -d.amount;
+  if(conto) conto.saldo += d.tipo==='attivo' ? resto : -resto;
   aggiungiMovimentoPrestito({
     debitoId:d.id, fase:'chiusura',
     type: d.tipo==='attivo' ? 'entrata' : 'uscita',
-    amount:d.amount, contoId, date:data,
+    amount:resto, contoId, date:data,
     desc: (d.tipo==='attivo'?'Restituito da ':'Restituito a ')+d.persona
   });
-  d.saldato=true; d.contoChiusura=contoId;
+  d.rimborsato=d.amount; d.saldato=true;
   snapshotPatrimonio();saveState();closeModal('saldaModal');renderAll();scheduleSync();
   toast('Saldato','ok');
 }
 
 function riapriDebito(d){
-  const cid=d.contoChiusura!==undefined?d.contoChiusura:d.contoId;
-  if(cid){
-    const conto=state.conti.find(c=>c.id===cid);
-    if(conto) conto.saldo += d.tipo==='attivo' ? -d.amount : d.amount;
-  }
+  // Ogni movimento di chiusura viene stornato sul conto su cui era stato
+  // registrato: possono essere diversi fra loro (contanti, bonifico…).
+  const chiusure=state.transactions.filter(t=>t.debitoId===d.id&&t.fase==='chiusura');
+  let ripristinato=0;
+  chiusure.forEach(t=>{
+    if(t.contoId){
+      const c=state.conti.find(x=>x.id===t.contoId);
+      if(c) c.saldo += t.type==='entrata' ? -t.amount : t.amount;
+    }
+    ripristinato+=t.amount;
+  });
   state.transactions=state.transactions.filter(t=>!(t.debitoId===d.id&&t.fase==='chiusura'));
+  d.rimborsato=Math.round(Math.max(0,(d.rimborsato||0)-ripristinato)*100)/100;
   d.saldato=false;
   snapshotPatrimonio();saveState();renderAll();scheduleSync();
-  toast('Riaperto','ok');
+  toast(`Riaperto · restano €${fmt(residuoDebito(d))}`,'ok');
 }
 
 /** Movimento collegato a un credito/debito. Il saldo del conto è già stato
@@ -2571,13 +2586,12 @@ function deleteDebito(id){
     : 'Eliminare?';
   if(!confirm(msg))return;
   // Ripristino il saldo: annullo apertura e, se c'era, chiusura
-  if(d.contoId){
-    const c=state.conti.find(x=>x.id===d.contoId);
-    if(c){
-      c.saldo += d.tipo==='attivo' ? d.amount : -d.amount;              // annulla l'apertura
-      if(d.saldato) c.saldo += d.tipo==='attivo' ? -d.amount : d.amount; // annulla la chiusura
-    }
-  }
+  // Storno ogni movimento collegato sul conto su cui era stato registrato
+  collegati.forEach(t=>{
+    if(!t.contoId) return;
+    const c=state.conti.find(x=>x.id===t.contoId);
+    if(c) c.saldo += t.type==='entrata' ? -t.amount : t.amount;
+  });
   state.transactions=state.transactions.filter(t=>t.debitoId!==id);
   state.debiti=state.debiti.filter(x=>x.id!==id);
   snapshotPatrimonio();saveState();renderAll();scheduleSync();
@@ -3904,10 +3918,12 @@ function gdEdit(){const id=detailGoalId;closeModal('goalDetailModal');setTimeout
 function gdDelete(){const id=detailGoalId;closeModal('goalDetailModal');setTimeout(()=>deleteObiettivo(id),200);}
 
 // ── DEBITI ────────────────────────────────────────────────────
+let mostraSaldati=false;
+function toggleSaldatiVisibili(){ mostraSaldati=!mostraSaldati; renderDebiti(); }
 function renderDebiti(){
   const att=state.debiti.filter(d=>d.tipo==='attivo'), pas=state.debiti.filter(d=>d.tipo==='passivo');
-  const totA=att.filter(d=>!d.saldato).reduce((s,d)=>s+d.amount,0);
-  const totP=pas.filter(d=>!d.saldato).reduce((s,d)=>s+d.amount,0);
+  const totA=att.filter(d=>!d.saldato).reduce((s,d)=>s+residuoDebito(d),0);
+  const totP=pas.filter(d=>!d.saldato).reduce((s,d)=>s+residuoDebito(d),0);
   const saldo=totA-totP;
 
   document.getElementById('debiti-attivi-tot').textContent='+€'+fmt(totA);
@@ -3921,10 +3937,16 @@ function renderDebiti(){
   sEl.className=(saldo>=0?'pos':'neg')+' hide-val';
   sEl.style.fontSize='22px'; sEl.style.fontWeight='700';
 
-  const renderList=(items,cId,isCredit)=>{
+  const renderList=(tutti,cId,isCredit)=>{
     const el=document.getElementById(cId);
+    const chiusi=tutti.filter(d=>d.saldato);
+    const items=mostraSaldati ? tutti : tutti.filter(d=>!d.saldato);
+    const coda=chiusi.length
+      ? `<button class="row-tap" onclick="toggleSaldatiVisibili()" style="justify-content:center">
+           <span class="row-sub" style="color:var(--text3)">${mostraSaldati?'Nascondi':'Mostra'} ${chiusi.length} saldat${chiusi.length===1?'o':'i'}</span>
+         </button>` : '';
     if(!items.length){
-      el.innerHTML=`<div class="empty"><div class="empty-text">Nessun ${isCredit?'credito':'debito'}</div><div class="empty-sub">Tocca + per aggiungere</div></div>`;
+      el.innerHTML=`<div class="empty"><div class="empty-text">Nessun ${isCredit?'credito':'debito'} aperto</div><div class="empty-sub">${chiusi.length?'':'Tocca + per aggiungere'}</div></div>`+coda;
       return;
     }
     el.innerHTML=[...items].sort((a,b)=>a.saldato-b.saldato).map(d=>{
@@ -3941,15 +3963,15 @@ function renderDebiti(){
         </span>
         <span class="row-main">
           <span class="row-title" style="${d.saldato?'text-decoration:line-through':''}">${esc(d.persona)}</span>
-          <span class="row-sub">${parts.join(' · ')||'—'}${late?' <span class="pill-state pill-late">SCADUTO</span>':''}${d.saldato?' <span class="pill-state pill-done">SALDATO</span>':''}</span>
+          <span class="row-sub">${parts.join(' · ')||'—'}${(!d.saldato&&d.rimborsato)?` · ${fmt(d.rimborsato)} di ${fmt(d.amount)} rientrati`:''}${late?' <span class="pill-state pill-late">SCADUTO</span>':''}${d.saldato?' <span class="pill-state pill-done">SALDATO</span>':''}</span>
         </span>
         <span class="row-right">
-          <span class="row-val hide-val" style="color:${isCredit?'var(--green)':'var(--red)'}">${isCredit?'+':'−'}€${fmt(d.amount)}</span>
+          <span class="row-val hide-val" style="color:${isCredit?'var(--green)':'var(--red)'}">${isCredit?'+':'−'}€${fmt(d.saldato?d.amount:residuoDebito(d))}</span>
           ${scad?`<span class="row-note">${scad.toLocaleDateString('it-IT',{day:'numeric',month:'short'})}</span>`:''}
         </span>
         <svg class="row-arrow"><use href="#i-chevron"/></svg>
       </button>`;
-    }).join('');
+    }).join('')+coda;
   };
   renderList(att,'debiti-attivi-list',true);
   renderList(pas,'debiti-passivi-list',false);
