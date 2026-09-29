@@ -653,7 +653,7 @@ select.form-input{cursor:pointer}
 
   <div class="section" style="padding-bottom:24px">
     <div style="text-align:center;font-size:12px;color:var(--text3);line-height:1.7">
-      Patrimonio v7.9<br>
+      Patrimonio v8.0<br>
       I dati sono salvati solo su questo dispositivo
     </div>
   </div>
@@ -4539,7 +4539,7 @@ async function fetchJustETF(inv, refPrice){
 
 let isRefreshing=false, lastRefreshAt=0;
 const REFRESH_COOLDOWN=5*60*1000;   // aggiornamenti silenziosi: al massimo uno ogni 5 minuti
-const REFRESH_MAX_MS=45000;         // oltre questo tempo si smette comunque di girare
+const REFRESH_MAX_MS=75000;         // oltre questo tempo si smette comunque di girare
 
 /** Aggiorna un singolo titolo. Non lancia mai: ritorna sempre un esito. */
 async function _updateOne(inv){
@@ -4589,7 +4589,7 @@ async function _doRefresh(silent=false){
   // Rete di sicurezza: qualunque cosa accada, l'icona smette di girare
   const stopSpin=setTimeout(()=>{ if(btn) btn.classList.remove('spinning'); }, REFRESH_MAX_MS);
 
-  let updated=0; const failed=[];
+  let updated=0, scaduto=false; const failed=[];
   try{
     const lavoro=(async()=>{
       const cryptos=state.investments.filter(i=>i.type==='crypto');
@@ -4606,17 +4606,27 @@ async function _doRefresh(silent=false){
           }
         }catch(e){ /* CoinGecko limita le richieste: si passa alla riserva */ }
 
-        for(const i of cryptos){
-          const sy=simboloCrypto(i);
-          const cgId=CRYPTO_IDS[sy];
+        const daRiserva=[];
+        cryptos.forEach(i=>{
+          const cgId=CRYPTO_IDS[simboloCrypto(i)];
           if(cgId && prices[cgId]?.eur){
             i.current=prices[cgId].eur; i.lastUpdate=new Date().toISOString();
-            i.priceSource='CoinGecko'; updated++; continue;
-          }
-          // Riserva: Yahoo attraverso il ponte Apps Script, che è sempre raggiungibile
-          const r=await fetchCryptoYahoo(sy);
-          if(r){ i.current=r.price; i.lastUpdate=new Date().toISOString(); i.priceSource=r.source; updated++; }
-          else failed.push(i.name);
+            i.priceSource='CoinGecko'; updated++;
+          } else daRiserva.push(i);
+        });
+        // Riserva Yahoo attraverso il ponte: due alla volta, altrimenti una
+        // moneta lenta si mangia tutto il tempo e le altre non vengono provate.
+        if(daRiserva.length){
+          const codaC=[...daRiserva];
+          const workerC=async()=>{
+            while(codaC.length){
+              const i=codaC.shift();
+              const r=await fetchCryptoYahoo(simboloCrypto(i));
+              if(r){ i.current=r.price; i.lastUpdate=new Date().toISOString(); i.priceSource=r.source; updated++; }
+              else failed.push(i.name);
+            }
+          };
+          await Promise.all([workerC(),workerC()]);
         }
       }
 
@@ -4633,7 +4643,7 @@ async function _doRefresh(silent=false){
     })();
 
     // Se la rete è lenta si esce comunque: meglio un aggiornamento parziale
-    await Promise.race([lavoro, new Promise(r=>setTimeout(r, REFRESH_MAX_MS))]);
+    scaduto = await Promise.race([lavoro.then(()=>false), new Promise(r=>setTimeout(()=>r(true), REFRESH_MAX_MS))]);
   }catch(e){
     console.error('Aggiornamento prezzi:', e);
   }finally{
@@ -4646,7 +4656,9 @@ async function _doRefresh(silent=false){
   if(updated){ snapshotPatrimonio(); saveState(); renderAll(); }
 
   if(!silent){
-    if(!failed.length){
+    if(scaduto){
+      toast(`Tempo scaduto · ${updated} aggiornat${updated===1?'o':'i'}, riprova per i restanti`,'err');
+    } else if(!failed.length){
       toast(`${updated} prezz${updated===1?'o':'i'} aggiornat${updated===1?'o':'i'}`,'ok');
     } else if(updated){
       toast(`${updated} aggiornati · ${failed.length} non trovati`,'err');
